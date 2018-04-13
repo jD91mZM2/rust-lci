@@ -1,5 +1,5 @@
-use std::result::Result as StdResult;
 use std::iter::Peekable;
+use std::result::Result as StdResult;
 
 #[derive(Debug, Fail)]
 pub enum Error {
@@ -47,9 +47,7 @@ pub enum Token {
     ModOf,
     BiggrOf,
     SmallrOf,
-
-    An,
-    Mkay
+    An
 }
 
 #[derive(Clone)]
@@ -156,9 +154,7 @@ impl<I: Iterator<Item = char> + Clone> Tokenizer<I> {
                     }
                 }
             },
-            "ITZ" => {
-                return Ok(Some(Token::Itz));
-            },
+            "ITZ" => return Ok(Some(Token::Itz)),
             "SUM" | "DIFF" | "PRODUKT" | "QUOSHUNT" | "MOD" | "BIGGR" | "SMALLR" => {
                 let mut clone = self.clone();
                 if clone.word() == "OF" {
@@ -175,6 +171,7 @@ impl<I: Iterator<Item = char> + Clone> Tokenizer<I> {
                     }));
                 }
             },
+            "AN" => return Ok(Some(Token::An)),
             _ => ()
         }
 
@@ -229,7 +226,7 @@ fn test() {
         &[Token::IHasA, Token::Ident("VAR".to_string()), Token::Itz, Token::Value(Value::Numbr(12))]
     );
     assert_eq!(
-        tokenize("SUM OF OBTW hi TLDR test").unwrap(),
-        &[Token::SumOf, Token::Ident("test".to_string())]
+        tokenize("SUM OF OBTW hi TLDR 2 AN 4").unwrap(),
+        &[Token::SumOf, Token::Value(Value::Numbr(2)), Token::An, Token::Value(Value::Numbr(4))]
     );
 }
