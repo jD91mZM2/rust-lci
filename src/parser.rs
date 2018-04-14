@@ -25,6 +25,17 @@ pub enum Expr {
     ModOf(Box<Expr>, Box<Expr>),
     BiggrOf(Box<Expr>, Box<Expr>),
     SmallrOf(Box<Expr>, Box<Expr>),
+
+    BothOf(Box<Expr>, Box<Expr>),
+    EitherOf(Box<Expr>, Box<Expr>),
+    WonOf(Box<Expr>, Box<Expr>),
+    Not(Box<Expr>),
+    AllOf(Vec<Expr>),
+    AnyOf(Vec<Expr>),
+
+    BothSaem(Box<Expr>, Box<Expr>),
+    Diffrint(Box<Expr>, Box<Expr>),
+
     Var(String),
     Value(Value)
 }
@@ -40,13 +51,6 @@ pub struct Parser<I: Iterator<Item = Token>> {
     iter: Peekable<I>
 }
 impl<I: Iterator<Item = Token>> Parser<I> {
-    pub fn expect(&mut self, token: Token) -> Result<()> {
-        match self.iter.next() {
-            Some(ref token2) if token == *token2 => Ok(()),
-            Some(token2) => Err(Error::ExpectedToken(token, token2)),
-            None => Err(Error::UnexpectedEOF)
-        }
-    }
     pub fn line(&mut self) -> Result<Option<AST>> {
         let stmt = self.statement()?;
         match self.iter.next() {
@@ -54,7 +58,14 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             _ => Err(Error::Trailing)
         }
     }
-    pub fn statement(&mut self) -> Result<Option<AST>> {
+    fn expect(&mut self, token: Token) -> Result<()> {
+        match self.iter.next() {
+            Some(ref token2) if token == *token2 => Ok(()),
+            Some(token2) => Err(Error::ExpectedToken(token, token2)),
+            None => Err(Error::UnexpectedEOF)
+        }
+    }
+    fn statement(&mut self) -> Result<Option<AST>> {
         match self.iter.peek() {
             Some(&Token::IHasA) => {
                 self.iter.next();
@@ -62,7 +73,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                     match self.iter.peek() {
                         Some(&Token::Itz) => {
                             self.iter.next();
-                            let expression = self.expression()?.ok_or(Error::ExpectedKind("token"))?;
+                            let expression = self.expect_expr()?;
                             Ok(Some(AST::IHasA(ident, expression)))
                         },
                         None | Some(&Token::Separator) => {
@@ -77,7 +88,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                     match self.iter.peek() {
                         Some(&Token::R) => {
                             self.iter.next();
-                            let expression = self.expression()?.ok_or(Error::ExpectedKind("token"))?;
+                            let expression = self.expect_expr()?;
                             Ok(Some(AST::R(ident, expression)))
                         },
                         None | Some(&Token::Separator) => {
@@ -110,7 +121,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                     while let Some(&Token::Mebbe) = self.iter.peek() {
                         self.iter.next();
                         let inner_ = unsafe { &mut *inner };
-                        inner_.push(AST::It(self.expression()?.ok_or(Error::ExpectedKind("expression"))?));
+                        inner_.push(AST::It(self.expect_expr()?));
                         let mut mebbe = Vec::new();
                         loop {
                             match self.iter.peek() {
@@ -148,53 +159,62 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         }
     }
     fn parse_two(&mut self) -> Result<(Box<Expr>, Box<Expr>)> {
-        let one = self.expression()?.ok_or(Error::ExpectedKind("token"))?;
+        let one = self.expect_expr()?;
         self.expect(Token::An)?;
-        let two = self.expression()?.ok_or(Error::ExpectedKind("token"))?;
+        let two = self.expect_expr()?;
         Ok((Box::new(one), Box::new(two)))
     }
-    pub fn expression(&mut self) -> Result<Option<Expr>> {
+    fn expect_expr(&mut self) -> Result<Expr> {
+        self.expression()?.ok_or(Error::ExpectedKind("expression"))
+    }
+    fn expression(&mut self) -> Result<Option<Expr>> {
+        macro_rules! x_of {
+            ($what:path) => {
+                {
+                    self.iter.next();
+                    let (one, two) = self.parse_two()?;
+                    Ok(Some($what(one, two)))
+                }
+            }
+        }
         match self.iter.peek() {
             Some(&Token::Value(_)) => {
                 if let Some(Token::Value(val)) = self.iter.next() {
                     Ok(Some(Expr::Value(val)))
                 } else { unreachable!(); }
             },
-            Some(&Token::SumOf) => {
+            Some(&Token::SumOf) => x_of!(Expr::SumOf),
+            Some(&Token::DiffOf) => x_of!(Expr::DiffOf),
+            Some(&Token::ProduktOf) => x_of!(Expr::ProduktOf),
+            Some(&Token::QuoshuntOf) => x_of!(Expr::QuoshuntOf),
+            Some(&Token::ModOf) => x_of!(Expr::ModOf),
+            Some(&Token::BiggrOf) => x_of!(Expr::BiggrOf),
+            Some(&Token::SmallrOf) => x_of!(Expr::SmallrOf),
+
+            Some(&Token::BothOf) => x_of!(Expr::BothOf),
+            Some(&Token::EitherOf) => x_of!(Expr::EitherOf),
+            Some(&Token::WonOf) => x_of!(Expr::WonOf),
+            Some(&Token::AllOf) => {
                 self.iter.next();
-                let (one, two) = self.parse_two()?;
-                Ok(Some(Expr::SumOf(one, two)))
+                let mut all = Vec::new();
+                all.push(self.expect_expr()?);
+                loop {
+                    match self.iter.peek() {
+                        Some(&Token::An) => {
+                            self.iter.next();
+                            all.push(self.expect_expr()?);
+                        },
+                        Some(&Token::Mkay) => { self.iter.next(); break },
+                        None | Some(&Token::Separator) => break,
+                        _ => return Err(Error::Trailing)
+                    }
+                }
+                Ok(Some(Expr::AllOf(all)))
             },
-            Some(&Token::DiffOf) => {
-                self.iter.next();
-                let (one, two) = self.parse_two()?;
-                Ok(Some(Expr::DiffOf(one, two)))
-            },
-            Some(&Token::ProduktOf) => {
-                self.iter.next();
-                let (one, two) = self.parse_two()?;
-                Ok(Some(Expr::ProduktOf(one, two)))
-            },
-            Some(&Token::QuoshuntOf) => {
-                self.iter.next();
-                let (one, two) = self.parse_two()?;
-                Ok(Some(Expr::QuoshuntOf(one, two)))
-            },
-            Some(&Token::ModOf) => {
-                self.iter.next();
-                let (one, two) = self.parse_two()?;
-                Ok(Some(Expr::ModOf(one, two)))
-            },
-            Some(&Token::BiggrOf) => {
-                self.iter.next();
-                let (one, two) = self.parse_two()?;
-                Ok(Some(Expr::BiggrOf(one, two)))
-            },
-            Some(&Token::SmallrOf) => {
-                self.iter.next();
-                let (one, two) = self.parse_two()?;
-                Ok(Some(Expr::SmallrOf(one, two)))
-            },
+            Some(&Token::AnyOf) => Ok(None),
+
+            Some(&Token::BothSaem) => x_of!(Expr::BothSaem),
+            Some(&Token::Diffrint) => x_of!(Expr::Diffrint),
             _ => Ok(None)
         }
     }
@@ -228,7 +248,7 @@ mod tests {
                     Token::An,
                     Token::Value(Value::Numbr(10))
             ]).unwrap(),
-            [AST::IHasA("VAR".to_string(), Expr::ProduktOf(
+            &[AST::IHasA("VAR".to_string(), Expr::ProduktOf(
                 Box::new(Expr::SumOf(
                     Box::new(Expr::Value(Value::Numbr(12))),
                     Box::new(Expr::Value(Value::Numbar(5.0)))
@@ -245,7 +265,7 @@ mod tests {
                 Token::R,
                 Token::Value(Value::Numbr(12))
             ]).unwrap(),
-            [AST::R("VAR".to_string(), Expr::Value(Value::Numbr(12)))]
+            &[AST::R("VAR".to_string(), Expr::Value(Value::Numbr(12)))]
         );
     }
     #[test]
@@ -267,7 +287,7 @@ mod tests {
                         Token::Oic, Token::Separator,
                 Token::Oic
             ]).unwrap(),
-            [
+            &[
                 AST::It(Expr::Value(Value::Troof(true))),
                 AST::ORly(
                     vec![AST::It(Expr::Value(Value::Numbr(1))),
@@ -288,5 +308,20 @@ mod tests {
                 )
             ]
         );
+    }
+    #[test]
+    fn boolean() {
+        assert_eq!(
+            parse(vec![
+                Token::AllOf,
+                    Token::BothSaem, Token::Value(Value::Numbr(1)), Token::An, Token::Value(Value::Numbr(1)),
+                    Token::An,
+                    Token::Diffrint, Token::Value(Value::Numbr(2)), Token::An, Token::Value(Value::Numbr(3))
+            ]).unwrap(),
+            &[AST::It(Expr::AllOf(vec![
+                Expr::BothSaem(Box::new(Expr::Value(Value::Numbr(1))), Box::new(Expr::Value(Value::Numbr(1)))),
+                Expr::Diffrint(Box::new(Expr::Value(Value::Numbr(2))), Box::new(Expr::Value(Value::Numbr(3))))
+            ]))]
+        )
     }
 }

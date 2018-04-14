@@ -48,7 +48,18 @@ pub enum Token {
     ModOf,
     BiggrOf,
     SmallrOf,
+
+    BothOf,
+    EitherOf,
+    WonOf,
+    Not,
+    AllOf,
+    AnyOf,
+    BothSaem,
+    Diffrint,
+
     An,
+    Mkay,
 
     ORly,
     YaRly,
@@ -163,23 +174,41 @@ impl<I: Iterator<Item = char> + Clone> Tokenizer<I> {
             },
             "ITZ" => return Ok(Some(Token::Itz)),
             "R" => return Ok(Some(Token::R)),
-            "SUM" | "DIFF" | "PRODUKT" | "QUOSHUNT" | "MOD" | "BIGGR" | "SMALLR" => {
+            "SUM" | "DIFF" | "PRODUKT" | "QUOSHUNT" | "MOD" | "BIGGR" | "SMALLR" |
+            "BOTH" | "EITHER" | "WON" | "ALL" | "ANY" => {
                 let mut clone = self.clone();
-                if clone.word() == "OF" {
-                    *self = clone;
-                    return Ok(Some(match &*word {
-                        "SUM" => Token::SumOf,
-                        "DIFF" => Token::DiffOf,
-                        "PRODUKT" => Token::ProduktOf,
-                        "QUOSHUNT" => Token::QuoshuntOf,
-                        "MOD" => Token::ModOf,
-                        "BIGGR" => Token::BiggrOf,
-                        "SMALLR" => Token::SmallrOf,
-                        _ => unreachable!()
-                    }));
+                match &*clone.word() {
+                    "OF" => {
+                        *self = clone;
+                        return Ok(Some(match &*word {
+                            "SUM" => Token::SumOf,
+                            "DIFF" => Token::DiffOf,
+                            "PRODUKT" => Token::ProduktOf,
+                            "QUOSHUNT" => Token::QuoshuntOf,
+                            "MOD" => Token::ModOf,
+                            "BIGGR" => Token::BiggrOf,
+                            "SMALLR" => Token::SmallrOf,
+
+                            "BOTH" => Token::BothOf,
+                            "EITHER" => Token::EitherOf,
+                            "WON" => Token::WonOf,
+                            "ALL" => Token::AllOf,
+                            "ANY" => Token::AnyOf,
+
+                            _ => unreachable!()
+                        }));
+                    },
+                    "SAEM" if word == "BOTH" => {
+                        *self = clone;
+                        return Ok(Some(Token::BothSaem));
+                    },
+                    _ => ()
                 }
             },
+            "NOT" => return Ok(Some(Token::Not)),
+            "DIFFRINT" => return Ok(Some(Token::Diffrint)),
             "AN" => return Ok(Some(Token::An)),
+            "MKAY" => return Ok(Some(Token::Mkay)),
             "O" => {
                 let mut clone = self.clone();
                 if clone.word() == "RLY?" {
@@ -273,20 +302,20 @@ mod tests {
     fn ifs() {
         assert_eq!(
             tokenize("\
-                SUM OF 0 AN 1, O RLY?
+                BOTH SAEM 1 AN 1, O RLY?
                     YA RLY, RESULT R \"YES\"
-                    MEBBE SUM OF 1 AN 2, RESULT R \"CLOSE\"
+                    MEBBE BOTH SAEM 1 AN 2, RESULT R \"CLOSE\"
                     NO WAI, RESULT R \"NO\"
                 OIC\
             ").unwrap(),
             &[
-                Token::SumOf, Token::Value(Value::Numbr(0)), Token::An, Token::Value(Value::Numbr(1)), Token::Separator,
+                Token::BothSaem, Token::Value(Value::Numbr(1)), Token::An, Token::Value(Value::Numbr(1)), Token::Separator,
                 Token::ORly, Token::Separator,
                     Token::YaRly, Token::Separator,
                         Token::Ident("RESULT".to_string()), Token::R, Token::Value(Value::Yarn("YES".to_string())),
                         Token::Separator,
                     Token::Mebbe,
-                        Token::SumOf, Token::Value(Value::Numbr(1)), Token::An, Token::Value(Value::Numbr(2)),
+                        Token::BothSaem, Token::Value(Value::Numbr(1)), Token::An, Token::Value(Value::Numbr(2)),
                         Token::Separator,
                         Token::Ident("RESULT".to_string()), Token::R, Token::Value(Value::Yarn("CLOSE".to_string())),
                         Token::Separator,
