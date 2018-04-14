@@ -110,7 +110,12 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
     pub fn eval_expr(&self, expr: Expr) -> Result<Value> {
         match expr {
             Expr::It => Ok(self.it.clone()),
-            Expr::Value(val) => Ok(val),
+            Expr::Value(mut val) => {
+                if let Some(missing) = val.interpolate(|var| self.find_var(var, |var| var.clone())) {
+                    return Err(Error::UndefinedVar(missing));
+                }
+                Ok(val)
+            },
             Expr::Var(ident) => {
                 if let Some(val) = self.find_var(&ident, |var| var.clone()) {
                     return Ok(val);

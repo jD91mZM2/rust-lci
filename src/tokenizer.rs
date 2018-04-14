@@ -1,5 +1,10 @@
-use std::iter::Peekable;
-use std::result::Result as StdResult;
+use std::{
+    borrow::Cow,
+    char as stdchar,
+    iter::Peekable,
+    result::Result as StdResult
+};
+use unic_ucd_name::Name as UnicName;
 
 #[derive(Debug, Fail)]
 pub enum Error {
@@ -7,8 +12,14 @@ pub enum Error {
     InvalidIdent(char),
     #[fail(display = "invalid number: {:?}", _0)]
     InvalidNumber(String),
+    #[fail(display = "invalid unicode character: {}", _0)]
+    InvalidUnicode(String),
+    #[fail(display = "invalid characters in interpolation: {:?}", _0)]
+    InvalidInterpolation(String),
     #[fail(display = "unclosed comment")]
     UnclosedComment,
+    #[fail(display = "unclosed interpolation in string")]
+    UnclosedInterpolation,
     #[fail(display = "unclosed string")]
     UnclosedString,
     #[fail(display = "unexpected end of file")]
@@ -22,9 +33,16 @@ pub enum Error {
 type Result<T> = StdResult<T, Error>;
 
 #[derive(Clone, Debug, PartialEq)]
+pub enum Interpolated {
+    Str(String),
+    Var(String)
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     Noob,
     Yarn(String),
+    YarnRaw(Vec<Interpolated>),
     Numbr(i64),
     Numbar(f64),
     Troof(bool)
@@ -39,6 +57,7 @@ impl Value {
         match self {
             Value::Noob => None,
             Value::Yarn(inner) => Some(inner),
+            Value::YarnRaw(_) => panic!("yarn not interpolated yet"),
             Value::Numbr(n) => Some(n.to_string()),
             Value::Numbar(n) => Some(n.to_string()),
             Value::Troof(b) => Some(b.to_string())
@@ -48,6 +67,7 @@ impl Value {
         match *self {
             Value::Noob => None,
             Value::Yarn(ref inner) => Some(inner.parse().unwrap_or(0)),
+            Value::YarnRaw(_) => panic!("yarn not interpolated yet"),
             Value::Numbr(n) => Some(n),
             Value::Numbar(n) => Some(n as i64),
             Value::Troof(b) => Some(b as i64)
@@ -57,6 +77,7 @@ impl Value {
         match *self {
             Value::Noob => None,
             Value::Yarn(ref inner) => Some(inner.parse().unwrap_or(0.0)),
+            Value::YarnRaw(_) => panic!("yarn not interpolated yet"),
             Value::Numbr(n) => Some(n as f64),
             Value::Numbar(n) => Some(n),
             Value::Troof(b) => Some(b as i64 as f64)
@@ -65,6 +86,7 @@ impl Value {
     pub fn is_numbar(&self) -> bool {
         match *self {
             Value::Yarn(ref inner) => inner.parse::<f64>().is_ok(),
+            Value::YarnRaw(_) => panic!("yarn not interpolated yet"),
             Value::Numbar(_) => true,
             _ => false
         }
@@ -73,10 +95,41 @@ impl Value {
         match *self {
             Value::Noob => false,
             Value::Yarn(ref inner) => inner.is_empty(),
+            Value::YarnRaw(_) => panic!("yarn not interpolated yet"),
             Value::Numbr(n) => n == 0,
             Value::Numbar(n) => n == 0.0,
             Value::Troof(b) => b
         }
+    }
+    pub fn interpolate<F>(&mut self, lookup: F) -> Option<String>
+        where F: Fn(&str) -> Option<Value>
+    {
+        let mut string_ = None;
+        if let Value::YarnRaw(ref parts) = *self {
+            let mut capacity = 0;
+            for part in parts {
+                if let Interpolated::Str(ref part) = *part {
+                    capacity += part.len();
+                }
+            }
+            let mut string = String::with_capacity(capacity);
+            for part in parts {
+                string.push_str(&match *part {
+                    Interpolated::Str(ref part) => Cow::Borrowed(part),
+                    Interpolated::Var(ref var) => Cow::Owned(
+                        match lookup(var).and_then(Self::cast_yarn) {
+                            Some(val) => val,
+                            None => return Some(var.clone())
+                        }
+                    )
+                });
+            }
+            string_ = Some(string);
+        }
+        if let Some(string) = string_ {
+            *self = Value::Yarn(string);
+        }
+        None
     }
 }
 
@@ -173,26 +226,92 @@ impl<I: Iterator<Item = char> + Clone> Tokenizer<I> {
             None => return Ok(None)
         };
         if c == '"' {
+            fn read_until<I: Iterator<Item = char>>(iter: &mut I, c: char) -> Result<String> {
+                let mut string = String::new();
+                loop {
+                    match iter.next() {
+                        Some('"') => return Err(Error::UnclosedInterpolation),
+                        None => return Err(Error::UnclosedString),
+
+                        Some(c2) if c == c2 => break,
+                        Some(c) => string.push(c)
+                    }
+                }
+                Ok(string)
+            }
             self.iter.next(); // leading "
+            let mut interpolated = Vec::new();
             let mut string = String::new();
             while let Some(c) = self.iter.next() {
                 if c == ':' {
-                    string.push(match self.iter.next() {
-                        Some(')') => '\n',
-                        Some('>') => '\t',
-                        Some('o') => '\x07',
-                        Some('"') => '"',
-                        Some(':') => ':',
+                    match self.iter.next() {
+                        Some(')') => string.push('\n'),
+                        Some('>') => string.push('\t'),
+                        Some('o') => string.push('\x07'),
+                        Some('"') => string.push('"'),
+                        Some(':') => string.push(':'),
+                        Some('(') => {
+                            let mut hex = read_until(&mut self.iter, ')')?;
+                            let num = match u32::from_str_radix(&hex, 16) {
+                                Ok(num) => num,
+                                Err(_) => return Err(Error::InvalidNumber(hex))
+                            };
+                            match stdchar::from_u32(num) {
+                                Some(c) => string.push(c),
+                                None => return Err(Error::InvalidUnicode(hex))
+                            }
+                        },
+                        Some('{') => {
+                            let mut var = read_until(&mut self.iter, '}')?;
+                            match var.chars().next() {
+                                None |
+                                Some('0'...'9') => return Err(Error::InvalidInterpolation(var)),
+                                _ => ()
+                            }
+                            if !var.chars().all(|c|
+                                    (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                                    (c >= '0' && c <= '9') || c == '_') {
+                                return Err(Error::InvalidInterpolation(var));
+                            }
+                            if !string.is_empty() {
+                                interpolated.push(Interpolated::Str(string));
+                            }
+                            interpolated.push(Interpolated::Var(var));
+                            string = String::new();
+                        },
+                        Some('[') => {
+                            let mut name = read_until(&mut self.iter, ']')?.to_uppercase();
+                            let mut unicode = None;
+                            for c in chars!(..) {
+                                if UnicName::of(c)
+                                        .map(|n| n.to_string().to_uppercase() == name)
+                                        .unwrap_or(false) {
+                                    unicode = Some(c);
+                                    break;
+                                }
+                            }
+                            match unicode {
+                                Some(c) => string.push(c),
+                                None => return Err(Error::InvalidUnicode(name))
+                            }
+                        },
                         Some(c) => return Err(Error::UnknownEscape(c)),
                         None => return Err(Error::UnclosedString)
-                    });
+                    };
                     continue;
                 } else if c == '"' {
                     break;
                 }
                 string.push(c);
             }
-            return Ok(Some(Token::Value(Value::Yarn(string))));
+            if interpolated.is_empty() {
+                return Ok(Some(Token::Value(Value::Yarn(string))));
+            } else {
+                if !string.is_empty() {
+                    interpolated.push(Interpolated::Str(string));
+                }
+                return Ok(Some(Token::Value(Value::YarnRaw(interpolated))));
+            }
         } else if c == '\n' || c == ',' {
             self.iter.next();
             return Ok(Some(Token::Separator));

@@ -1,4 +1,6 @@
 #[macro_use] extern crate failure;
+#[macro_use] extern crate unic_char_range;
+extern crate unic_ucd_name;
 
 pub mod eval;
 pub mod tokenizer;
