@@ -2,5 +2,6 @@
 authors = ["jD91mZM2 <me@krake.one>"]
 name = "lci"
 version = "0.1.0"
+
 [dependencies]
 failure = "0.1.1"

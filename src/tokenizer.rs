@@ -21,13 +21,63 @@ pub enum Error {
 
 type Result<T> = StdResult<T, Error>;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     Noob,
     Yarn(String),
     Numbr(i64),
     Numbar(f64),
     Troof(bool)
+}
+impl Default for Value {
+    fn default() -> Self {
+        Value::Noob
+    }
+}
+impl Value {
+    pub fn cast_yarn(self) -> Option<String> {
+        match self {
+            Value::Noob => None,
+            Value::Yarn(inner) => Some(inner),
+            Value::Numbr(n) => Some(n.to_string()),
+            Value::Numbar(n) => Some(n.to_string()),
+            Value::Troof(b) => Some(b.to_string())
+        }
+    }
+    pub fn cast_numbr(&self) -> Option<i64> {
+        match *self {
+            Value::Noob => None,
+            Value::Yarn(ref inner) => Some(inner.parse().unwrap_or(0)),
+            Value::Numbr(n) => Some(n),
+            Value::Numbar(n) => Some(n as i64),
+            Value::Troof(b) => Some(b as i64)
+        }
+    }
+    pub fn cast_numbar(&self) -> Option<f64> {
+        match *self {
+            Value::Noob => None,
+            Value::Yarn(ref inner) => Some(inner.parse().unwrap_or(0.0)),
+            Value::Numbr(n) => Some(n as f64),
+            Value::Numbar(n) => Some(n),
+            Value::Troof(b) => Some(b as i64 as f64)
+        }
+    }
+    pub fn is_numbar(&self) -> bool {
+        match *self {
+            Value::Yarn(ref inner) => inner.parse::<f64>().is_ok(),
+            Value::Numbar(_) => true,
+            _ => false
+        }
+    }
+    pub fn cast_troof(&self) -> bool {
+        match *self {
+            Value::Noob => false,
+            Value::Yarn(ref inner) => inner.is_empty(),
+            Value::Numbr(n) => n == 0,
+            Value::Numbar(n) => n == 0.0,
+            Value::Troof(b) => b
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -65,7 +115,11 @@ pub enum Token {
     YaRly,
     Mebbe,
     NoWai,
-    Oic
+    Oic,
+
+    Visible,
+    Exclamation,
+    Gimmeh
 }
 
 #[derive(Clone)]
@@ -232,6 +286,10 @@ impl<I: Iterator<Item = char> + Clone> Tokenizer<I> {
                 }
             },
             "OIC" => return Ok(Some(Token::Oic)),
+
+            "VISIBLE" => return Ok(Some(Token::Visible)),
+            "!" => return Ok(Some(Token::Exclamation)),
+            "GIMMEH" => return Ok(Some(Token::Gimmeh)),
             _ => ()
         }
 

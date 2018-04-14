@@ -44,7 +44,10 @@ pub enum AST {
     IHasA(String, Expr),
     R(String, Expr),
     It(Expr),
-    ORly(Vec<AST>, Vec<AST>)
+    ORly(Vec<AST>, Vec<AST>),
+
+    Visible(Vec<Expr>, bool),
+    Gimmeh(String),
 }
 
 pub struct Parser<I: Iterator<Item = Token>> {
@@ -155,6 +158,27 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 self.expect(Token::Oic)?;
                 Ok(Some(AST::ORly(yarly, nowai)))
             },
+            Some(&Token::Visible) => {
+                self.iter.next();
+                let mut exprs = Vec::new();
+                let newline = loop {
+                    exprs.push(self.expect_expr()?);
+                    match self.iter.peek() {
+                        Some(&Token::Exclamation) => { self.iter.next(); break false },
+                        None | Some(&Token::Separator) => break true,
+                        _ => ()
+                    }
+                };
+                Ok(Some(AST::Visible(exprs, newline)))
+            },
+            Some(&Token::Gimmeh) => {
+                self.iter.next();
+                if let Some(Token::Ident(ident)) = self.iter.next() {
+                    Ok(Some(AST::Gimmeh(ident)))
+                } else {
+                    Err(Error::ExpectedKind("ident"))
+                }
+            },
             _ => Ok(self.expression()?.map(|expr| AST::It(expr)))
         }
     }
@@ -181,6 +205,11 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             Some(&Token::Value(_)) => {
                 if let Some(Token::Value(val)) = self.iter.next() {
                     Ok(Some(Expr::Value(val)))
+                } else { unreachable!(); }
+            },
+            Some(&Token::Ident(_)) => {
+                if let Some(Token::Ident(var)) = self.iter.next() {
+                    Ok(Some(Expr::Var(var)))
                 } else { unreachable!(); }
             },
             Some(&Token::SumOf) => x_of!(Expr::SumOf),
