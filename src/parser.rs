@@ -377,19 +377,14 @@ mod tests {
                 AST::ORly(
                     vec![AST::It(Expr::Value(Value::Numbr(1))),
                          AST::It(Expr::Value(Value::Numbr(3)))],
-                    vec![
-                        AST::It(Expr::Value(Value::Troof(false))),
-                        AST::ORly(
-                            vec![AST::It(Expr::Value(Value::Numbr(3)))],
-                            vec![
-                                AST::It(Expr::Value(Value::Troof(true))),
-                                AST::ORly(
-                                    vec![AST::It(Expr::Value(Value::Numbr(7)))],
-                                    Vec::new()
-                                )
-                            ],
-                        )
-                    ]
+                    vec![(Expr::Value(Value::Troof(false)),
+                          vec![AST::It(Expr::Value(Value::Numbr(3)))])],
+                    vec![AST::It(Expr::Value(Value::Troof(true))),
+                         AST::ORly(
+                             vec![AST::It(Expr::Value(Value::Numbr(7)))],
+                             Vec::new(),
+                             Vec::new()
+                         )]
                 )
             ]
         );

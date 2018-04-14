@@ -33,7 +33,7 @@ pub enum Error {
 type Result<T> = StdResult<T, Error>;
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum Interpolated {
+pub enum Interpolate {
     Str(String),
     Var(String)
 }
@@ -42,7 +42,7 @@ pub enum Interpolated {
 pub enum Value {
     Noob,
     Yarn(String),
-    YarnRaw(Vec<Interpolated>),
+    YarnRaw(Vec<Interpolate>),
     Numbr(i64),
     Numbar(f64),
     Troof(bool)
@@ -108,15 +108,15 @@ impl Value {
         if let Value::YarnRaw(ref parts) = *self {
             let mut capacity = 0;
             for part in parts {
-                if let Interpolated::Str(ref part) = *part {
+                if let Interpolate::Str(ref part) = *part {
                     capacity += part.len();
                 }
             }
             let mut string = String::with_capacity(capacity);
             for part in parts {
                 string.push_str(&match *part {
-                    Interpolated::Str(ref part) => Cow::Borrowed(part),
-                    Interpolated::Var(ref var) => Cow::Owned(
+                    Interpolate::Str(ref part) => Cow::Borrowed(part),
+                    Interpolate::Var(ref var) => Cow::Owned(
                         match lookup(var).and_then(Self::cast_yarn) {
                             Some(val) => val,
                             None => return Some(var.clone())
@@ -274,9 +274,9 @@ impl<I: Iterator<Item = char> + Clone> Tokenizer<I> {
                                 return Err(Error::InvalidInterpolation(var));
                             }
                             if !string.is_empty() {
-                                interpolated.push(Interpolated::Str(string));
+                                interpolated.push(Interpolate::Str(string));
                             }
-                            interpolated.push(Interpolated::Var(var));
+                            interpolated.push(Interpolate::Var(var));
                             string = String::new();
                         },
                         Some('[') => {
@@ -308,7 +308,7 @@ impl<I: Iterator<Item = char> + Clone> Tokenizer<I> {
                 return Ok(Some(Token::Value(Value::Yarn(string))));
             } else {
                 if !string.is_empty() {
-                    interpolated.push(Interpolated::Str(string));
+                    interpolated.push(Interpolate::Str(string));
                 }
                 return Ok(Some(Token::Value(Value::YarnRaw(interpolated))));
             }
@@ -471,6 +471,16 @@ mod tests {
         assert_eq!(
             tokenize(r#" "Hello World :) How are you :>? I'm:: :"fine:"" "#).unwrap(),
             &[Token::Value(Value::Yarn("Hello World \n How are you \t? I'm: \"fine\"".to_string()))]
+        );
+    }
+    #[test]
+    fn interpolation() {
+        assert_eq!(
+            tokenize(r#" ":[SNOWMAN] is :(1F60A). He says:: :{something}" "#).unwrap(),
+            &[Token::Value(Value::YarnRaw(vec![
+                Interpolate::Str("☃ is 😊. He says: ".to_string()),
+                Interpolate::Var("something".to_string())
+            ]))]
         );
     }
     #[test]
