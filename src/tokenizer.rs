@@ -39,6 +39,7 @@ pub enum Token {
 
     IHasA,
     Itz,
+    R,
 
     SumOf,
     DiffOf,
@@ -47,7 +48,13 @@ pub enum Token {
     ModOf,
     BiggrOf,
     SmallrOf,
-    An
+    An,
+
+    ORly,
+    YaRly,
+    Mebbe,
+    NoWai,
+    Oic
 }
 
 #[derive(Clone)]
@@ -155,6 +162,7 @@ impl<I: Iterator<Item = char> + Clone> Tokenizer<I> {
                 }
             },
             "ITZ" => return Ok(Some(Token::Itz)),
+            "R" => return Ok(Some(Token::R)),
             "SUM" | "DIFF" | "PRODUKT" | "QUOSHUNT" | "MOD" | "BIGGR" | "SMALLR" => {
                 let mut clone = self.clone();
                 if clone.word() == "OF" {
@@ -172,6 +180,29 @@ impl<I: Iterator<Item = char> + Clone> Tokenizer<I> {
                 }
             },
             "AN" => return Ok(Some(Token::An)),
+            "O" => {
+                let mut clone = self.clone();
+                if clone.word() == "RLY?" {
+                    *self = clone;
+                    return Ok(Some(Token::ORly));
+                }
+            },
+            "YA" => {
+                let mut clone = self.clone();
+                if clone.word() == "RLY" {
+                    *self = clone;
+                    return Ok(Some(Token::YaRly));
+                }
+            },
+            "MEBBE" => return Ok(Some(Token::Mebbe)),
+            "NO" => {
+                let mut clone = self.clone();
+                if clone.word() == "WAI" {
+                    *self = clone;
+                    return Ok(Some(Token::NoWai));
+                }
+            },
+            "OIC" => return Ok(Some(Token::Oic)),
             _ => ()
         }
 
@@ -215,18 +246,55 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
 }
 
 #[cfg(test)]
-#[test]
-fn test() {
-    assert_eq!(
-        tokenize(r#" "Hello World :) How are you :>? I'm:: :"fine:"" "#).unwrap(),
-        &[Token::Value(Value::Yarn("Hello World \n How are you \t? I'm: \"fine\"".to_string()))]
-    );
-    assert_eq!(
-        tokenize("I HAS A VAR ITZ 12           BTW this is a comment").unwrap(),
-        &[Token::IHasA, Token::Ident("VAR".to_string()), Token::Itz, Token::Value(Value::Numbr(12))]
-    );
-    assert_eq!(
-        tokenize("SUM OF OBTW hi TLDR 2 AN 4").unwrap(),
-        &[Token::SumOf, Token::Value(Value::Numbr(2)), Token::An, Token::Value(Value::Numbr(4))]
-    );
+mod tests {
+    use super::*;
+    #[test]
+    fn strings() {
+        assert_eq!(
+            tokenize(r#" "Hello World :) How are you :>? I'm:: :"fine:"" "#).unwrap(),
+            &[Token::Value(Value::Yarn("Hello World \n How are you \t? I'm: \"fine\"".to_string()))]
+        );
+    }
+    #[test]
+    fn assign() {
+        assert_eq!(
+            tokenize("I HAS A VAR ITZ 12           BTW this is a comment").unwrap(),
+            &[Token::IHasA, Token::Ident("VAR".to_string()), Token::Itz, Token::Value(Value::Numbr(12))]
+        );
+    }
+    #[test]
+    fn sum_of() {
+        assert_eq!(
+            tokenize("SUM OF OBTW hi TLDR 2 AN 4").unwrap(),
+            &[Token::SumOf, Token::Value(Value::Numbr(2)), Token::An, Token::Value(Value::Numbr(4))]
+        );
+    }
+    #[test]
+    fn ifs() {
+        assert_eq!(
+            tokenize("\
+                SUM OF 0 AN 1, O RLY?
+                    YA RLY, RESULT R \"YES\"
+                    MEBBE SUM OF 1 AN 2, RESULT R \"CLOSE\"
+                    NO WAI, RESULT R \"NO\"
+                OIC\
+            ").unwrap(),
+            &[
+                Token::SumOf, Token::Value(Value::Numbr(0)), Token::An, Token::Value(Value::Numbr(1)), Token::Separator,
+                Token::ORly, Token::Separator,
+                    Token::YaRly, Token::Separator,
+                        Token::Ident("RESULT".to_string()), Token::R, Token::Value(Value::Yarn("YES".to_string())),
+                        Token::Separator,
+                    Token::Mebbe,
+                        Token::SumOf, Token::Value(Value::Numbr(1)), Token::An, Token::Value(Value::Numbr(2)),
+                        Token::Separator,
+                        Token::Ident("RESULT".to_string()), Token::R, Token::Value(Value::Yarn("CLOSE".to_string())),
+                        Token::Separator,
+                    Token::NoWai, Token::Separator,
+                        Token::Ident("RESULT".to_string()), Token::R, Token::Value(Value::Yarn("NO".to_string())),
+                        Token::Separator,
+                Token::Oic
+            ]
+        )
+    }
 }
