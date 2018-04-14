@@ -1,5 +1,7 @@
-use std::iter::Peekable;
-use std::result::Result as StdResult;
+use std::{
+    iter::Peekable,
+    result::Result as StdResult
+};
 use tokenizer::{Token, Value};
 
 #[derive(Debug, Fail)]
@@ -18,6 +20,10 @@ type Result<T> = StdResult<T, Error>;
 
 #[derive(Debug, PartialEq)]
 pub enum Expr {
+    Var(String),
+    Value(Value),
+    It,
+
     SumOf(Box<Expr>, Box<Expr>),
     DiffOf(Box<Expr>, Box<Expr>),
     ProduktOf(Box<Expr>, Box<Expr>),
@@ -36,17 +42,17 @@ pub enum Expr {
     BothSaem(Box<Expr>, Box<Expr>),
     Diffrint(Box<Expr>, Box<Expr>),
 
-    Smoosh(Vec<Expr>),
-
-    Var(String),
-    Value(Value)
+    Smoosh(Vec<Expr>)
 }
 #[derive(Debug, PartialEq)]
 pub enum AST {
     IHasA(String, Expr),
     R(String, Expr),
     It(Expr),
-    ORly(Vec<AST>, Vec<AST>),
+    ORly(Vec<AST>, Vec<(Expr, Vec<AST>)>, Vec<AST>),
+    Wtf(Vec<(Expr, Vec<AST>)>, Vec<AST>),
+
+    Gtfo,
 
     Visible(Vec<Expr>, bool),
     Gimmeh(String),
@@ -63,6 +69,20 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             _ => Err(Error::Trailing)
         }
     }
+    fn block(&mut self, until: &[Token]) -> Result<Vec<AST>> {
+        let mut block = Vec::new();
+        loop {
+            match self.iter.peek() {
+                Some(token) => if until.contains(&token) { break; },
+                None => ()
+            }
+            if let Some(line) = self.line()? {
+                println!("> {:?}", line);
+                block.push(line);
+            }
+        }
+        Ok(block)
+    }
     fn expect(&mut self, token: Token) -> Result<()> {
         match self.iter.next() {
             Some(ref token2) if token == *token2 => Ok(()),
@@ -70,8 +90,24 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             None => Err(Error::UnexpectedEOF)
         }
     }
+    fn expect_peek(&mut self, token: Token) -> Result<()> {
+        match self.iter.peek() {
+            Some(token2) if token == *token2 => Ok(()),
+            Some(token2) => Err(Error::ExpectedToken(token, token2.clone())),
+            None => Err(Error::UnexpectedEOF)
+        }
+    }
+    fn trim(&mut self) {
+        while let Some(&Token::Separator) = self.iter.peek() {
+            self.iter.next();
+        }
+    }
     fn statement(&mut self) -> Result<Option<AST>> {
         match self.iter.peek() {
+            Some(&Token::Gtfo) => {
+                self.iter.next();
+                Ok(Some(AST::Gtfo))
+            },
             Some(&Token::IHasA) => {
                 self.iter.next();
                 if let Some(Token::Ident(ident)) = self.iter.next() {
@@ -86,7 +122,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                         },
                         _ => Err(Error::Trailing)
                     }
-                } else { return Err(Error::ExpectedKind("ident")); }
+                } else { Err(Error::ExpectedKind("ident")) }
             },
             Some(&Token::Ident(_)) => {
                 if let Some(Token::Ident(ident)) = self.iter.next() {
@@ -106,59 +142,54 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             Some(&Token::ORly) => {
                 self.iter.next();
                 self.expect(Token::Separator)?;
+                self.trim();
                 self.expect(Token::YaRly)?;
                 self.expect(Token::Separator)?;
-                let mut yarly = Vec::new();
-                loop {
-                    match self.iter.peek() {
-                        Some(&Token::Mebbe) |
-                        Some(&Token::NoWai) |
-                        Some(&Token::Oic) => break,
-                        _ => if let Some(line) = self.line()? {
-                            yarly.push(line);
-                        }
-                    }
-                }
-                let mut nowai = Vec::new();
-                {
-                    let mut inner: *mut Vec<AST> = &mut nowai;
-                    // pointer because rust won't let us keep a reference alive for long enough
-                    while let Some(&Token::Mebbe) = self.iter.peek() {
-                        self.iter.next();
-                        let inner_ = unsafe { &mut *inner };
-                        inner_.push(AST::It(self.expect_expr()?));
-                        let mut mebbe = Vec::new();
-                        loop {
-                            match self.iter.peek() {
-                                Some(&Token::Mebbe) |
-                                Some(&Token::NoWai) |
-                                Some(&Token::Oic) => break,
-                                _ => if let Some(line) = self.line()? {
-                                    mebbe.push(line);
-                                }
-                            }
-                        }
-                        inner_.push(AST::ORly(mebbe, Vec::new()));
-                        if let AST::ORly(_, ref mut ast) = *inner_.last_mut().unwrap() {
-                            inner = &mut *ast;
-                        }
-                    }
+                let mut yarly = self.block(&[Token::Mebbe, Token::NoWai, Token::Oic])?;
 
-                    if let Some(&Token::NoWai) = self.iter.peek() {
-                        self.iter.next();
-                        let inner_ = unsafe { &mut *inner };
-                        loop {
-                            match self.iter.peek() {
-                                Some(&Token::Oic) => break,
-                                _ => if let Some(line) = self.line()? {
-                                    inner_.push(line);
-                                }
-                            }
-                        }
-                    }
+                let mut mebbe = Vec::new();
+                self.trim();
+                while let Some(&Token::Mebbe) = self.iter.peek() {
+                    self.iter.next();
+                    let condition = self.expect_expr()?;
+                    self.expect(Token::Separator)?;
+                    let mut block = self.block(&[Token::Mebbe, Token::NoWai, Token::Oic])?;
+                    self.trim();
+
+                    mebbe.push((condition, block));
                 }
+
+                let nowai = if let Some(&Token::NoWai) = self.iter.peek() {
+                    self.iter.next();
+                    self.expect(Token::Separator)?;
+                    self.block(&[Token::Oic])?
+                } else { Vec::new() };
                 self.expect(Token::Oic)?;
-                Ok(Some(AST::ORly(yarly, nowai)))
+                Ok(Some(AST::ORly(yarly, mebbe, nowai)))
+            },
+            Some(&Token::Wtf) => {
+                self.iter.next();
+                self.expect(Token::Separator)?;
+                self.trim();
+                self.expect_peek(Token::Omg)?;
+
+                let mut omg = Vec::new();
+                while let Some(&Token::Omg) = self.iter.peek() {
+                    self.iter.next();
+                    let expr = self.expect_expr()?;
+                    self.expect(Token::Separator)?;
+                    let mut block = self.block(&[Token::Omg, Token::OmgWtf, Token::Oic])?;
+                    self.trim();
+
+                    omg.push((expr, block));
+                }
+                let mut omgwtf = if let Some(&Token::OmgWtf) = self.iter.peek() {
+                    self.iter.next();
+                    self.expect(Token::Separator)?;
+                    self.block(&[Token::Oic])?
+                } else { Vec::new() };
+                self.expect(Token::Oic)?;
+                Ok(Some(AST::Wtf(omg, omgwtf)))
             },
             Some(&Token::Visible) => {
                 self.iter.next();
@@ -222,6 +253,10 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             }
         }
         match self.iter.peek() {
+            Some(&Token::It) => {
+                self.iter.next();
+                Ok(Some(Expr::It))
+            }
             Some(&Token::Value(_)) => {
                 if let Some(Token::Value(val)) = self.iter.next() {
                     Ok(Some(Expr::Value(val)))
@@ -274,6 +309,7 @@ pub fn parse<I: IntoIterator<Item = Token>>(input: I) -> Result<Vec<AST>> {
     let mut parsed = Vec::new();
     while parser.iter.peek().is_some() {
         if let Some(ast) = parser.line()? {
+            println!("{:?}", ast);
             parsed.push(ast);
         }
     }

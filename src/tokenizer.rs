@@ -80,10 +80,11 @@ impl Value {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Token {
     Ident(String),
     Value(Value),
+    It,
 
     Separator,
 
@@ -117,6 +118,11 @@ pub enum Token {
     Mebbe,
     NoWai,
     Oic,
+
+    Wtf,
+    Omg,
+    OmgWtf,
+    Gtfo,
 
     Visible,
     Exclamation,
@@ -218,6 +224,7 @@ impl<I: Iterator<Item = char> + Clone> Tokenizer<I> {
                     }
                 }
             },
+            "IT" => return Ok(Some(Token::It)),
             "I" => {
                 let mut clone = self.clone();
                 if clone.word() == "HAS" {
@@ -288,7 +295,10 @@ impl<I: Iterator<Item = char> + Clone> Tokenizer<I> {
                 }
             },
             "OIC" => return Ok(Some(Token::Oic)),
-
+            "WTF?" => return Ok(Some(Token::Wtf)),
+            "OMG" => return Ok(Some(Token::Omg)),
+            "OMGWTF" => return Ok(Some(Token::OmgWtf)),
+            "GTFO" => return Ok(Some(Token::Gtfo)),
             "VISIBLE" => return Ok(Some(Token::Visible)),
             "!" => return Ok(Some(Token::Exclamation)),
             "GIMMEH" => return Ok(Some(Token::Gimmeh)),

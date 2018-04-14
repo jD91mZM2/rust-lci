@@ -11,8 +11,6 @@ use tokenizer::Value;
 pub enum Error {
     #[fail(display = "cannot cast value to that type")]
     InvalidCast,
-    #[fail(display = "cannot modify the reserved IT variable")]
-    ReservedVar,
     #[fail(display = "can't shadow variable from the same scope: {:?}", _0)]
     ShadowVar(String),
     #[fail(display = "undefined variable {:?}", _0)]
@@ -20,6 +18,12 @@ pub enum Error {
 }
 
 type Result<T> = StdResult<T, Error>;
+
+pub enum Return {
+    None,
+    Gtfo,
+    Value(Value)
+}
 
 #[derive(Default)]
 pub struct Scope<'a, R: io::BufRead + 'a, W: io::Write + 'a> {
@@ -105,16 +109,13 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
     }
     pub fn eval_expr(&self, expr: Expr) -> Result<Value> {
         match expr {
+            Expr::It => Ok(self.it.clone()),
             Expr::Value(val) => Ok(val),
             Expr::Var(ident) => {
-                if ident == "IT" {
-                    Ok(self.it.clone())
+                if let Some(val) = self.find_var(&ident, |var| var.clone()) {
+                    return Ok(val);
                 } else {
-                    if let Some(val) = self.find_var(&ident, |var| var.clone()) {
-                        return Ok(val);
-                    } else {
-                        return Err(Error::UndefinedVar(ident));
-                    }
+                    return Err(Error::UndefinedVar(ident));
                 }
             },
 
@@ -159,12 +160,9 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
             }
         }
     }
-    pub fn eval(&mut self, ast: AST) -> Result<()> {
+    pub fn eval(&mut self, ast: AST) -> Result<Return> {
         match ast {
             AST::IHasA(ident, expr) => {
-                if ident == "IT" {
-                    return Err(Error::ReservedVar);
-                }
                 let mut vars = self.vars.borrow_mut();
                 if vars.contains_key(&ident) {
                     return Err(Error::ShadowVar(ident));
@@ -172,22 +170,39 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
                 vars.insert(ident, self.eval_expr(expr)?);
             },
             AST::R(ident, expr) => {
-                if ident == "IT" {
-                    return Err(Error::ReservedVar);
-                }
                 let val = self.eval_expr(expr)?;
                 if self.find_var(&ident, |var| *var = val).is_none() {
                     return Err(Error::UndefinedVar(ident));
                 }
             },
             AST::It(expr) => self.it = self.eval_expr(expr)?,
-            AST::ORly(block, otherwise) => {
+            AST::ORly(yarly, mebbe, nowai) => {
                 if self.it.cast_troof() {
-                    self.scope().eval_all(block)?;
-                } else {
-                    self.scope().eval_all(otherwise)?;
+                    return self.scope().eval_all(yarly);
                 }
+                for (condition, block) in mebbe {
+                    if self.eval_expr(condition)?.cast_troof() {
+                        return self.scope().eval_all(block);
+                    }
+                }
+                self.scope().eval_all(nowai)?;
             },
+            AST::Wtf(omg, omgwtf) => {
+                let mut matched = false;
+                for (condition, block) in omg {
+                    if matched || self.it == self.eval_expr(condition)? {
+                        matched = true;
+                        match self.scope().eval_all(block)? {
+                            Return::None => (),
+                            Return::Gtfo => return Ok(Return::None),
+                            val @ Return::Value(_) => return Ok(val)
+                        }
+                    }
+                }
+                self.scope().eval_all(omgwtf)?;
+            },
+
+            AST::Gtfo => return Ok(Return::Gtfo),
 
             AST::Visible(exprs, newline) => {
                 let mut result = String::new();
@@ -214,12 +229,15 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
                 self.vars.borrow_mut().insert(ident, Value::Yarn(text));
             }
         }
-        Ok(())
+        Ok(Return::None)
     }
-    pub fn eval_all<I: IntoIterator<Item = AST>>(&mut self, asts: I) -> Result<()> {
+    pub fn eval_all<I: IntoIterator<Item = AST>>(&mut self, asts: I) -> Result<Return> {
         for line in asts.into_iter() {
-            self.eval(line)?;
+            match self.eval(line)? {
+                Return::None => (),
+                val => return Ok(val)
+            }
         }
-        Ok(())
+        Ok(Return::None)
     }
 }
