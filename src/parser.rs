@@ -194,6 +194,11 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             Some(&Token::BothOf) => x_of!(Expr::BothOf),
             Some(&Token::EitherOf) => x_of!(Expr::EitherOf),
             Some(&Token::WonOf) => x_of!(Expr::WonOf),
+            Some(&Token::Not) => {
+                self.iter.next();
+                let expr = self.expect_expr()?;
+                Ok(Some(Expr::Not(Box::new(expr))))
+            },
             Some(&Token::AllOf) => {
                 self.iter.next();
                 let mut all = Vec::new();
@@ -316,11 +321,13 @@ mod tests {
                 Token::AllOf,
                     Token::BothSaem, Token::Value(Value::Numbr(1)), Token::An, Token::Value(Value::Numbr(1)),
                     Token::An,
-                    Token::Diffrint, Token::Value(Value::Numbr(2)), Token::An, Token::Value(Value::Numbr(3))
+                    Token::Not, Token::Diffrint, Token::Value(Value::Numbr(2)), Token::An, Token::Value(Value::Numbr(2))
             ]).unwrap(),
             &[AST::It(Expr::AllOf(vec![
                 Expr::BothSaem(Box::new(Expr::Value(Value::Numbr(1))), Box::new(Expr::Value(Value::Numbr(1)))),
-                Expr::Diffrint(Box::new(Expr::Value(Value::Numbr(2))), Box::new(Expr::Value(Value::Numbr(3))))
+                Expr::Not(Box::new(
+                    Expr::Diffrint(Box::new(Expr::Value(Value::Numbr(2))), Box::new(Expr::Value(Value::Numbr(2))))
+                ))
             ]))]
         )
     }
