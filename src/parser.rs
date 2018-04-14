@@ -36,6 +36,8 @@ pub enum Expr {
     BothSaem(Box<Expr>, Box<Expr>),
     Diffrint(Box<Expr>, Box<Expr>),
 
+    Smoosh(Vec<Expr>),
+
     Var(String),
     Value(Value)
 }
@@ -182,11 +184,29 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             _ => Ok(self.expression()?.map(|expr| AST::It(expr)))
         }
     }
-    fn parse_two(&mut self) -> Result<(Box<Expr>, Box<Expr>)> {
+    fn two_exprs(&mut self) -> Result<(Box<Expr>, Box<Expr>)> {
         let one = self.expect_expr()?;
-        self.expect(Token::An)?;
+        if let Some(&Token::An) = self.iter.peek() {
+            self.iter.next();
+        }
         let two = self.expect_expr()?;
         Ok((Box::new(one), Box::new(two)))
+    }
+    fn multiple_exprs(&mut self) -> Result<Vec<Expr>> {
+        let mut all = Vec::new();
+        all.push(self.expect_expr()?);
+        loop {
+            match self.iter.peek() {
+                Some(&Token::Mkay) => { self.iter.next(); break },
+                None | Some(&Token::Separator) => break,
+                Some(&Token::An) => {
+                    self.iter.next();
+                    all.push(self.expect_expr()?);
+                },
+                _ => all.push(self.expect_expr()?)
+            }
+        }
+        Ok(all)
     }
     fn expect_expr(&mut self) -> Result<Expr> {
         self.expression()?.ok_or(Error::ExpectedKind("expression"))
@@ -196,7 +216,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             ($what:path) => {
                 {
                     self.iter.next();
-                    let (one, two) = self.parse_two()?;
+                    let (one, two) = self.two_exprs()?;
                     Ok(Some($what(one, two)))
                 }
             }
@@ -230,25 +250,20 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             },
             Some(&Token::AllOf) => {
                 self.iter.next();
-                let mut all = Vec::new();
-                all.push(self.expect_expr()?);
-                loop {
-                    match self.iter.peek() {
-                        Some(&Token::An) => {
-                            self.iter.next();
-                            all.push(self.expect_expr()?);
-                        },
-                        Some(&Token::Mkay) => { self.iter.next(); break },
-                        None | Some(&Token::Separator) => break,
-                        _ => return Err(Error::Trailing)
-                    }
-                }
-                Ok(Some(Expr::AllOf(all)))
+                Ok(Some(Expr::AllOf(self.multiple_exprs()?)))
             },
-            Some(&Token::AnyOf) => Ok(None),
+            Some(&Token::AnyOf) => {
+                self.iter.next();
+                Ok(Some(Expr::AnyOf(self.multiple_exprs()?)))
+            },
 
             Some(&Token::BothSaem) => x_of!(Expr::BothSaem),
             Some(&Token::Diffrint) => x_of!(Expr::Diffrint),
+
+            Some(&Token::Smoosh) => {
+                self.iter.next();
+                Ok(Some(Expr::Smoosh(self.multiple_exprs()?)))
+            },
             _ => Ok(None)
         }
     }

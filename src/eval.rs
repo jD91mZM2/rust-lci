@@ -148,7 +148,15 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
             },
 
             Expr::BothSaem(one, two) => self.apply_any(*one, *two, |x, y| x == y),
-            Expr::Diffrint(one, two) => self.apply_any(*one, *two, |x, y| x == y)
+            Expr::Diffrint(one, two) => self.apply_any(*one, *two, |x, y| x == y),
+
+            Expr::Smoosh(exprs) => {
+                let mut result = String::new();
+                for expr in exprs {
+                    result.push_str(&self.eval_expr(expr)?.cast_yarn().ok_or(Error::InvalidCast)?);
+                }
+                Ok(Value::Yarn(result))
+            }
         }
     }
     pub fn eval(&mut self, ast: AST) -> Result<()> {
@@ -184,9 +192,6 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
             AST::Visible(exprs, newline) => {
                 let mut result = String::new();
                 for expr in exprs {
-                    if !result.is_empty() {
-                        result.push(' ');
-                    }
                     result.push_str(&self.eval_expr(expr)?.cast_yarn().ok_or(Error::InvalidCast)?);
                 }
                 let stdout = self.top_parent().stdout.as_ref().expect("No stdout handle on Scope");

@@ -18,9 +18,9 @@ use std::io;
 
 pub fn eval<R: io::BufRead, W: io::Write>(input: &str, stdin: R, stdout: W) -> Result<(), Error> {
     let tokens = tokenizer::tokenize(input).map_err(|err| Error::TokenizeError(err))?;
-    //println!("Tokens: {:?}", tokens);
+    println!("Tokens: {:?}", tokens);
     let parsed = parser::parse(tokens).map_err(|err| Error::ParseError(err))?;
-    //println!("Parsed: {:?}", parsed);
+    println!("Parsed: {:?}", parsed);
     let mut scope = eval::Scope::new(stdin, stdout);
     scope.eval_all(parsed).map_err(|err| Error::EvalError(err))
 }

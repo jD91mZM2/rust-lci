@@ -108,6 +108,7 @@ pub enum Token {
     BothSaem,
     Diffrint,
 
+    Smoosh,
     An,
     Mkay,
 
@@ -261,6 +262,7 @@ impl<I: Iterator<Item = char> + Clone> Tokenizer<I> {
             },
             "NOT" => return Ok(Some(Token::Not)),
             "DIFFRINT" => return Ok(Some(Token::Diffrint)),
+            "SMOOSH" => return Ok(Some(Token::Smoosh)),
             "AN" => return Ok(Some(Token::An)),
             "MKAY" => return Ok(Some(Token::Mkay)),
             "O" => {
