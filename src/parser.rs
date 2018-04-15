@@ -321,7 +321,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn declaration() {
+    fn assign() {
         assert_eq!(
             parse(vec![
                 Token::IHasA,
@@ -341,9 +341,6 @@ mod tests {
                 Box::new(Expr::Value(Value::Numbr(10)))
             ))]
         );
-    }
-    #[test]
-    fn assignment() {
         assert_eq!(
             parse(vec![
                 Token::Ident("VAR".to_string()),
@@ -354,7 +351,24 @@ mod tests {
         );
     }
     #[test]
-    fn nested_ifs() {
+    fn troofs() {
+        assert_eq!(
+            parse(vec![
+                Token::AllOf,
+                    Token::BothSaem, Token::Value(Value::Numbr(1)), Token::An, Token::Value(Value::Numbr(1)),
+                    Token::An,
+                    Token::Not, Token::Diffrint, Token::Value(Value::Numbr(2)), Token::An, Token::Value(Value::Numbr(2))
+            ]).unwrap(),
+            &[AST::It(Expr::AllOf(vec![
+                Expr::BothSaem(Box::new(Expr::Value(Value::Numbr(1))), Box::new(Expr::Value(Value::Numbr(1)))),
+                Expr::Not(Box::new(
+                    Expr::Diffrint(Box::new(Expr::Value(Value::Numbr(2))), Box::new(Expr::Value(Value::Numbr(2))))
+                ))
+            ]))]
+        )
+    }
+    #[test]
+    fn nested_orlys() {
         assert_eq!(
             parse(vec![
                 Token::Value(Value::Troof(true)), Token::Separator,
@@ -390,20 +404,39 @@ mod tests {
         );
     }
     #[test]
-    fn boolean() {
+    fn wtf() {
         assert_eq!(
             parse(vec![
-                Token::AllOf,
-                    Token::BothSaem, Token::Value(Value::Numbr(1)), Token::An, Token::Value(Value::Numbr(1)),
-                    Token::An,
-                    Token::Not, Token::Diffrint, Token::Value(Value::Numbr(2)), Token::An, Token::Value(Value::Numbr(2))
+                Token::SumOf, Token::Value(Value::Numbr(1)), Token::An, Token::Value(Value::Numbr(3)), Token::Separator,
+                Token::Wtf, Token::Separator,
+                Token::Omg, Token::Value(Value::Numbr(1)), Token::Separator,
+                    Token::Visible, Token::Value(Value::Yarn("WHAT, NO".to_string())), Token::Separator,
+                Token::Omg, Token::Value(Value::Numbr(2)), Token::Separator,
+                Token::Omg, Token::Value(Value::Numbr(3)), Token::Separator,
+                    Token::Visible, Token::Value(Value::Yarn("R U STUPID?".to_string())), Token::Separator,
+                    Token::Gtfo, Token::Separator,
+                Token::Omg, Token::Value(Value::Numbr(4)), Token::Separator,
+                    Token::Visible, Token::Value(Value::Yarn("CORREC!".to_string())), Token::Separator,
+                    Token::Gtfo, Token::Separator,
+                Token::OmgWtf, Token::Separator,
+                    Token::Visible, Token::Value(Value::Yarn("IDFK".to_string())), Token::Separator,
+                    Token::Gtfo, Token::Separator,
+                Token::Oic
             ]).unwrap(),
-            &[AST::It(Expr::AllOf(vec![
-                Expr::BothSaem(Box::new(Expr::Value(Value::Numbr(1))), Box::new(Expr::Value(Value::Numbr(1)))),
-                Expr::Not(Box::new(
-                    Expr::Diffrint(Box::new(Expr::Value(Value::Numbr(2))), Box::new(Expr::Value(Value::Numbr(2))))
-                ))
-            ]))]
-        )
+            &[
+                AST::It(Expr::SumOf(Box::new(Expr::Value(Value::Numbr(1))), Box::new(Expr::Value(Value::Numbr(3))))),
+                AST::Wtf(
+                    vec![(Expr::Value(Value::Numbr(1)),
+                        vec![AST::Visible(vec![Expr::Value(Value::Yarn("WHAT, NO".to_string()))], true)]),
+                         (Expr::Value(Value::Numbr(2)), vec![]),
+                         (Expr::Value(Value::Numbr(3)),
+                        vec![AST::Visible(vec![Expr::Value(Value::Yarn("R U STUPID?".to_string()))], true), AST::Gtfo]),
+                         (Expr::Value(Value::Numbr(4)),
+                        vec![AST::Visible(vec![Expr::Value(Value::Yarn("CORREC!".to_string()))], true), AST::Gtfo])],
+                     vec![AST::Visible(vec![Expr::Value(Value::Yarn("IDFK".to_string()))], true),
+                          AST::Gtfo]
+                )
+            ]
+        );
     }
 }

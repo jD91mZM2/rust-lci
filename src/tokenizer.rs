@@ -343,6 +343,8 @@ impl<I: Iterator<Item = char> + Clone> Tokenizer<I> {
                     }
                 }
             },
+            "WIN" => return Ok(Some(Token::Value(Value::Troof(true)))),
+            "FAIL" => return Ok(Some(Token::Value(Value::Troof(false)))),
             "IT" => return Ok(Some(Token::It)),
             "I" => {
                 let mut clone = self.clone();
@@ -467,7 +469,7 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
 mod tests {
     use super::*;
     #[test]
-    fn strings() {
+    fn yarns() {
         assert_eq!(
             tokenize(r#" "Hello World :) How are you :>? I'm:: :"fine:"" "#).unwrap(),
             &[Token::Value(Value::Yarn("Hello World \n How are you \t? I'm: \"fine\"".to_string()))]
@@ -484,10 +486,26 @@ mod tests {
         );
     }
     #[test]
+    fn primitives() {
+        assert_eq!(
+            tokenize("1, 2.3, WIN, FAIL").unwrap(),
+            &[
+                Token::Value(Value::Numbr(1)), Token::Separator,
+                Token::Value(Value::Numbar(2.3)), Token::Separator,
+                Token::Value(Value::Troof(true)), Token::Separator,
+                Token::Value(Value::Troof(false))
+            ]
+        );
+    }
+    #[test]
     fn assign() {
         assert_eq!(
             tokenize("I HAS A VAR ITZ 12           BTW this is a comment").unwrap(),
             &[Token::IHasA, Token::Ident("VAR".to_string()), Token::Itz, Token::Value(Value::Numbr(12))]
+        );
+        assert_eq!(
+            tokenize("VAR R 12").unwrap(),
+            &[Token::Ident("VAR".to_string()), Token::R, Token::Value(Value::Numbr(12))]
         );
     }
     #[test]
@@ -498,7 +516,7 @@ mod tests {
         );
     }
     #[test]
-    fn ifs() {
+    fn orly() {
         assert_eq!(
             tokenize("\
                 BOTH SAEM 1 AN 1, O RLY?
@@ -521,6 +539,45 @@ mod tests {
                     Token::NoWai, Token::Separator,
                         Token::Ident("RESULT".to_string()), Token::R, Token::Value(Value::Yarn("NO".to_string())),
                         Token::Separator,
+                Token::Oic
+            ]
+        )
+    }
+    #[test]
+    fn wtf() {
+        assert_eq!(
+            tokenize("\
+                SUM OF 1 AN 3
+                WTF?
+                OMG 1
+                    VISIBLE \"WHAT, NO\"
+                OMG 2
+                OMG 3
+                    VISIBLE \"R U STUPID?\"
+                    GTFO
+                OMG 4
+                    VISIBLE \"CORREC!\"
+                    GTFO
+                OMGWTF
+                    VISIBLE \"IDFK\"
+                    GTFO
+                OIC\
+            ").unwrap(),
+            vec![
+                Token::SumOf, Token::Value(Value::Numbr(1)), Token::An, Token::Value(Value::Numbr(3)), Token::Separator,
+                Token::Wtf, Token::Separator,
+                Token::Omg, Token::Value(Value::Numbr(1)), Token::Separator,
+                    Token::Visible, Token::Value(Value::Yarn("WHAT, NO".to_string())), Token::Separator,
+                Token::Omg, Token::Value(Value::Numbr(2)), Token::Separator,
+                Token::Omg, Token::Value(Value::Numbr(3)), Token::Separator,
+                    Token::Visible, Token::Value(Value::Yarn("R U STUPID?".to_string())), Token::Separator,
+                    Token::Gtfo, Token::Separator,
+                Token::Omg, Token::Value(Value::Numbr(4)), Token::Separator,
+                    Token::Visible, Token::Value(Value::Yarn("CORREC!".to_string())), Token::Separator,
+                    Token::Gtfo, Token::Separator,
+                Token::OmgWtf, Token::Separator,
+                    Token::Visible, Token::Value(Value::Yarn("IDFK".to_string())), Token::Separator,
+                    Token::Gtfo, Token::Separator,
                 Token::Oic
             ]
         )
