@@ -135,9 +135,9 @@ impl Value {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Token {
+    It,
     Ident(String),
     Value(Value),
-    It,
 
     Separator,
 
@@ -187,6 +187,7 @@ pub enum Token {
     HowIzI,
     Yr,
     IfUSaySo,
+    FoundYr,
     IIz,
 
     Visible,
@@ -474,6 +475,13 @@ impl<I: Iterator<Item = char> + Clone> Tokenizer<I> {
                             return Ok(Some(Token::IfUSaySo));
                         }
                     }
+                }
+            },
+            "FOUND" => {
+                let mut clone = self.clone();
+                if clone.word() == "YR" {
+                    *self = clone;
+                    return Ok(Some(Token::FoundYr));
                 }
             },
             "VISIBLE" => return Ok(Some(Token::Visible)),

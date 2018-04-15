@@ -28,9 +28,10 @@ pub enum Operation {
 }
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expr {
+    It,
     Var(String),
     Value(Value),
-    It,
+    IIz(String, Vec<Expr>),
 
     SumOf(Box<Expr>, Box<Expr>),
     DiffOf(Box<Expr>, Box<Expr>),
@@ -60,8 +61,10 @@ pub enum AST {
     ORly(Vec<AST>, Vec<(Expr, Vec<AST>)>, Vec<AST>),
     Wtf(Vec<(Expr, Vec<AST>)>, Vec<AST>),
     ImInYr(Operation, String, Option<Expr>, Vec<AST>),
+    HowIzI(String, Vec<String>, Vec<AST>),
 
     Gtfo,
+    FoundYr(Expr),
 
     Visible(Vec<Expr>, bool),
     Gimmeh(String),
@@ -86,7 +89,6 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 None => ()
             }
             if let Some(line) = self.line()? {
-                println!("> {:?}", line);
                 block.push(line);
             }
         }
@@ -112,7 +114,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     fn expect_ident(&mut self) -> Result<String> {
         match self.iter.next() {
             Some(Token::Ident(ident)) => Ok(ident),
-            _ => Err(Error::ExpectedKind("expression"))
+            _ => Err(Error::ExpectedKind("identifier"))
         }
     }
     fn trim(&mut self) {
@@ -125,6 +127,10 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             Some(&Token::Gtfo) => {
                 self.iter.next();
                 Ok(Some(AST::Gtfo))
+            },
+            Some(&Token::FoundYr) => {
+                self.iter.next();
+                Ok(Some(AST::FoundYr(self.expect_expr()?)))
             },
             Some(&Token::IHasA) => {
                 self.iter.next();
@@ -237,6 +243,25 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 }
                 Ok(Some(AST::ImInYr(operation, var, condition, block)))
             },
+            Some(&Token::HowIzI) => {
+                self.iter.next();
+                let name = self.expect_ident()?;
+                let mut args = Vec::new();
+                if let Some(&Token::Yr) = self.iter.peek() {
+                    self.iter.next();
+                    args.push(self.expect_ident()?);
+                    while let Some(&Token::An) = self.iter.peek() {
+                        self.iter.next();
+                        self.expect(Token::Yr)?;
+                        args.push(self.expect_ident()?);
+                    }
+                }
+                self.expect(Token::Separator)?;
+                let block = self.block(&[Token::IfUSaySo])?;
+                self.expect(Token::IfUSaySo)?;
+
+                Ok(Some(AST::HowIzI(name, args, block)))
+            },
             Some(&Token::Visible) => {
                 self.iter.next();
                 let mut exprs = Vec::new();
@@ -307,6 +332,22 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                     Ok(Some(Expr::Var(var)))
                 } else { unreachable!(); }
             },
+            Some(&Token::IIz) => {
+                self.iter.next();
+                let name = self.expect_ident()?;
+                let mut args = Vec::new();
+                if let Some(&Token::Yr) = self.iter.peek() {
+                    self.iter.next();
+                    args.push(self.expect_expr()?);
+                    while let Some(&Token::An) = self.iter.peek() {
+                        self.iter.next();
+                        self.expect(Token::Yr)?;
+                        args.push(self.expect_expr()?);
+                    }
+                }
+                self.expect(Token::Mkay)?;
+                Ok(Some(Expr::IIz(name, args)))
+            },
             Some(&Token::SumOf) => x_of!(Expr::SumOf),
             Some(&Token::DiffOf) => x_of!(Expr::DiffOf),
             Some(&Token::ProduktOf) => x_of!(Expr::ProduktOf),
@@ -349,7 +390,6 @@ pub fn parse<I: IntoIterator<Item = Token>>(input: I) -> Result<Vec<AST>> {
     let mut parsed = Vec::new();
     while parser.iter.peek().is_some() {
         if let Some(ast) = parser.line()? {
-            println!("{:?}", ast);
             parsed.push(ast);
         }
     }
@@ -502,6 +542,32 @@ mod tests {
             ]).unwrap(),
             &[AST::ImInYr(Operation::Uppin, String::from("VAR"), None,
                   vec![AST::Visible(vec![Expr::Var("VAR".to_string())], true)])]
+        );
+    }
+    #[test]
+    fn how_iz_i() {
+        assert_eq!(
+            parse(vec![
+                Token::HowIzI, Token::Ident("PRINTING".to_string()), Token::Yr, Token::Ident("VAR".to_string()),
+                Token::Separator,
+                Token::Visible, Token::Ident("VAR".to_string()), Token::Separator,
+                Token::IfUSaySo
+            ]).unwrap(),
+            &[AST::HowIzI("PRINTING".to_string(), vec!["VAR".to_string()],
+                  vec![AST::Visible(vec![Expr::Var("VAR".to_string())], true)])]
+        );
+    }
+    #[test]
+    fn i_iz() {
+        assert_eq!(
+            parse(vec![
+                Token::IIz, Token::Ident("PRINTING".to_string()), Token::Yr,
+                Token::Value(Value::Yarn("TEST".to_string())), Token::An, Token::Yr,
+                Token::Value(Value::Yarn("TEST 2".to_string())), Token::Mkay
+            ]).unwrap(),
+            &[AST::It(Expr::IIz("PRINTING".to_string(),
+                  vec![Expr::Value(Value::Yarn("TEST".to_string())),
+                       Expr::Value(Value::Yarn("TEST 2".to_string()))]))]
         );
     }
 }

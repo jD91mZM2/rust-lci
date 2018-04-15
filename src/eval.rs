@@ -11,10 +11,14 @@ use tokenizer::Value;
 pub enum Error {
     #[fail(display = "cannot cast value to that type")]
     InvalidCast,
-    #[fail(display = "loop variable can't be casted to a number")]
+    #[fail(display = "loop variable cannot be casted to numbr")]
     InvalidCastLoop,
+    #[fail(display = "function {:?} expected {} parameters", _0, _1)]
+    InvalidUsage(String, usize),
     #[fail(display = "can't shadow variable from the same scope: {:?}", _0)]
     ShadowVar(String),
+    #[fail(display = "undefined function {:?}", _0)]
+    UndefinedFunc(String),
     #[fail(display = "undefined variable {:?}", _0)]
     UndefinedVar(String)
 }
@@ -27,12 +31,18 @@ pub enum Return {
     Value(Value)
 }
 
+struct Function {
+    args: Vec<String>,
+    block: Vec<AST>
+}
+
 pub struct Scope<'a, R: io::BufRead + 'a, W: io::Write + 'a> {
     stdin: Option<RefCell<R>>,
     stdout: Option<RefCell<W>>,
 
-    it: Value,
+    it: RefCell<Value>,
     vars: RefCell<HashMap<String, Value>>,
+    funcs: RefCell<HashMap<String, Function>>,
     parent: Option<&'a Scope<'a, R, W>>
 }
 impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
@@ -41,8 +51,9 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
             stdin: Some(RefCell::new(stdin)),
             stdout: Some(RefCell::new(stdout)),
 
-            it: Value::Noob,
+            it: RefCell::new(Value::Noob),
             vars: RefCell::new(HashMap::new()),
+            funcs: RefCell::new(HashMap::new()),
             parent: None
         }
     }
@@ -69,6 +80,33 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
             }
         }
     }
+    fn call_func(&self, name: &str, args: Vec<Value>) -> Result<Value> {
+        let mut me = self;
+        Ok(loop {
+            let mut funcs = me.funcs.borrow_mut();
+            if let Some(the_func) = funcs.get_mut(name) {
+                if args.len() != the_func.args.len() {
+                    return Err(Error::InvalidUsage(name.to_string(), the_func.args.len()));
+                }
+
+                let mut vars = me.vars.borrow_mut();
+                for (i, arg) in args.iter().enumerate() {
+                    vars.insert(the_func.args[i].clone(), arg.clone());
+                }
+                drop(vars);
+
+                break match me.eval_all(the_func.block.clone())? {
+                    Return::None => me.it.borrow().clone(),
+                    Return::Gtfo => Value::Noob,
+                    Return::Value(val) => val
+                };
+            } else if let Some(parent) = me.parent {
+                me = parent;
+            } else {
+                return Err(Error::UndefinedFunc(name.to_string()));
+            }
+        })
+    }
     fn scope(&'a self) -> Self {
         Self {
             stdin: None,
@@ -76,6 +114,7 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
 
             it: self.it.clone(),
             vars: RefCell::new(HashMap::new()),
+            funcs: RefCell::new(HashMap::new()),
             parent: Some(self)
         }
     }
@@ -110,7 +149,7 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
     }
     pub fn eval_expr(&self, expr: Expr) -> Result<Value> {
         match expr {
-            Expr::It => Ok(self.it.clone()),
+            Expr::It => Ok(self.it.borrow().clone()),
             Expr::Value(mut val) => {
                 if let Some(missing) = val.interpolate(|var| self.find_var(var, |var| var.clone())) {
                     return Err(Error::UndefinedVar(missing));
@@ -123,6 +162,13 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
                 } else {
                     return Err(Error::UndefinedVar(ident));
                 }
+            },
+            Expr::IIz(name, args) => {
+                let mut args_val = Vec::with_capacity(args.len());
+                for arg in args {
+                    args_val.push(self.eval_expr(arg)?);
+                }
+                self.call_func(&name, args_val)
             },
 
             Expr::SumOf(one, two) => self.apply_num(*one, *two, |x, y| x + y, |x, y| x + y),
@@ -166,7 +212,7 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
             }
         }
     }
-    pub fn eval(&mut self, ast: AST) -> Result<Return> {
+    pub fn eval(&self, ast: AST) -> Result<Return> {
         match ast {
             AST::IHasA(ident, expr) => {
                 let mut vars = self.vars.borrow_mut();
@@ -181,9 +227,9 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
                     return Err(Error::UndefinedVar(ident));
                 }
             },
-            AST::It(expr) => self.it = self.eval_expr(expr)?,
+            AST::It(expr) => *self.it.borrow_mut() = self.eval_expr(expr)?,
             AST::ORly(yarly, mebbe, nowai) => {
-                if self.it.cast_troof() {
+                if self.it.borrow().cast_troof() {
                     return self.scope().eval_all(yarly);
                 }
                 for (condition, block) in mebbe {
@@ -195,8 +241,9 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
             },
             AST::Wtf(omg, omgwtf) => {
                 let mut matched = false;
+                let it = self.it.borrow();
                 for (condition, block) in omg {
-                    if matched || self.it == self.eval_expr(condition)? {
+                    if matched || *it == self.eval_expr(condition)? {
                         matched = true;
                         match self.scope().eval_all(block)? {
                             Return::None => (),
@@ -216,23 +263,27 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
                         Return::Gtfo => return Ok(Return::None),
                         val @ Return::Value(_) => return Ok(val)
                     }
-                    let mut vars = scope.vars.borrow_mut();
-                    if let Some(var) = vars.get_mut(&var) {
-                        match var.cast_numbr() {
-                            Some(num) => {
-                                match operation {
-                                    Operation::Uppin => *var = Value::Numbr(num + 1),
-                                    Operation::Nerfin => *var = Value::Numbr(num - 1),
-                                    Operation::IIz(_) => unimplemented!()
-                                }
-                            },
-                            None => return Err(Error::InvalidCast)
-                        }
-                    }
+                    let val = scope.vars.borrow_mut()
+                        .entry(var.clone())
+                        .or_insert(Value::Numbr(0))
+                        .clone();
+                    let val = match operation {
+                        Operation::Uppin => Value::Numbr(val.cast_numbr().ok_or(Error::InvalidCastLoop)? + 1),
+                        Operation::Nerfin => Value::Numbr(val.cast_numbr().ok_or(Error::InvalidCastLoop)? - 1),
+                        Operation::IIz(ref name) => scope.call_func(&name, vec![val])?
+                    };
+                    *scope.vars.borrow_mut().get_mut(&var).unwrap() = val;
                 }
+            },
+            AST::HowIzI(name, args, block) => {
+                self.funcs.borrow_mut().insert(name.clone(), Function {
+                    args: args,
+                    block: block
+                });
             },
 
             AST::Gtfo => return Ok(Return::Gtfo),
+            AST::FoundYr(expr) => return Ok(Return::Value(self.eval_expr(expr)?)),
 
             AST::Visible(exprs, newline) => {
                 let mut result = String::new();
@@ -261,7 +312,7 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
         }
         Ok(Return::None)
     }
-    pub fn eval_all<I: IntoIterator<Item = AST>>(&mut self, asts: I) -> Result<Return> {
+    pub fn eval_all<I: IntoIterator<Item = AST>>(&self, asts: I) -> Result<Return> {
         for line in asts.into_iter() {
             match self.eval(line)? {
                 Return::None => (),
