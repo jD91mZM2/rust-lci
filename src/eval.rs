@@ -1,4 +1,4 @@
-use parser::{AST, Expr};
+use parser::{AST, Expr, Operation};
 use std::{
     cell::RefCell,
     collections::HashMap,
@@ -11,6 +11,8 @@ use tokenizer::Value;
 pub enum Error {
     #[fail(display = "cannot cast value to that type")]
     InvalidCast,
+    #[fail(display = "loop variable can't be casted to a number")]
+    InvalidCastLoop,
     #[fail(display = "can't shadow variable from the same scope: {:?}", _0)]
     ShadowVar(String),
     #[fail(display = "undefined variable {:?}", _0)]
@@ -25,7 +27,6 @@ pub enum Return {
     Value(Value)
 }
 
-#[derive(Default)]
 pub struct Scope<'a, R: io::BufRead + 'a, W: io::Write + 'a> {
     stdin: Option<RefCell<R>>,
     stdout: Option<RefCell<W>>,
@@ -205,6 +206,30 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
                     }
                 }
                 self.scope().eval_all(omgwtf)?;
+            },
+            AST::ImInYr(operation, var, condition, block) => {
+                let mut scope = self.scope();
+                scope.vars.borrow_mut().insert(var.clone(), Value::Numbr(0));
+                while condition.is_none() || scope.eval_expr(condition.clone().unwrap())?.cast_troof() {
+                    match scope.eval_all(block.clone())? {
+                        Return::None => (),
+                        Return::Gtfo => return Ok(Return::None),
+                        val @ Return::Value(_) => return Ok(val)
+                    }
+                    let mut vars = scope.vars.borrow_mut();
+                    if let Some(var) = vars.get_mut(&var) {
+                        match var.cast_numbr() {
+                            Some(num) => {
+                                match operation {
+                                    Operation::Uppin => *var = Value::Numbr(num + 1),
+                                    Operation::Nerfin => *var = Value::Numbr(num - 1),
+                                    Operation::IIz(_) => unimplemented!()
+                                }
+                            },
+                            None => return Err(Error::InvalidCast)
+                        }
+                    }
+                }
             },
 
             AST::Gtfo => return Ok(Return::Gtfo),

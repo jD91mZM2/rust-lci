@@ -10,6 +10,8 @@ pub enum Error {
     ExpectedKind(&'static str),
     #[fail(display = "expected token {:?}, found {:?}", _0, _1)]
     ExpectedToken(Token, Token),
+    #[fail(display = "loop label mismatch. started {:?}, got {:?}", _0, _1)]
+    LabelMismatch(String, String),
     #[fail(display = "trailing characters after statement")]
     Trailing,
     #[fail(display = "unexpected end of file")]
@@ -18,7 +20,13 @@ pub enum Error {
 
 type Result<T> = StdResult<T, Error>;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
+pub enum Operation {
+    Uppin,
+    Nerfin,
+    IIz(String)
+}
+#[derive(Clone, Debug, PartialEq)]
 pub enum Expr {
     Var(String),
     Value(Value),
@@ -44,13 +52,14 @@ pub enum Expr {
 
     Smoosh(Vec<Expr>)
 }
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum AST {
     IHasA(String, Expr),
     R(String, Expr),
     It(Expr),
     ORly(Vec<AST>, Vec<(Expr, Vec<AST>)>, Vec<AST>),
     Wtf(Vec<(Expr, Vec<AST>)>, Vec<AST>),
+    ImInYr(Operation, String, Option<Expr>, Vec<AST>),
 
     Gtfo,
 
@@ -97,6 +106,15 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             None => Err(Error::UnexpectedEOF)
         }
     }
+    fn expect_expr(&mut self) -> Result<Expr> {
+        self.expression()?.ok_or(Error::ExpectedKind("expression"))
+    }
+    fn expect_ident(&mut self) -> Result<String> {
+        match self.iter.next() {
+            Some(Token::Ident(ident)) => Ok(ident),
+            _ => Err(Error::ExpectedKind("expression"))
+        }
+    }
     fn trim(&mut self) {
         while let Some(&Token::Separator) = self.iter.peek() {
             self.iter.next();
@@ -110,19 +128,18 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             },
             Some(&Token::IHasA) => {
                 self.iter.next();
-                if let Some(Token::Ident(ident)) = self.iter.next() {
-                    match self.iter.peek() {
-                        Some(&Token::Itz) => {
-                            self.iter.next();
-                            let expression = self.expect_expr()?;
-                            Ok(Some(AST::IHasA(ident, expression)))
-                        },
-                        None | Some(&Token::Separator) => {
-                            Ok(Some(AST::IHasA(ident, Expr::Value(Value::Noob))))
-                        },
-                        _ => Err(Error::Trailing)
-                    }
-                } else { Err(Error::ExpectedKind("ident")) }
+                let ident = self.expect_ident()?;
+                match self.iter.peek() {
+                    Some(&Token::Itz) => {
+                        self.iter.next();
+                        let expression = self.expect_expr()?;
+                        Ok(Some(AST::IHasA(ident, expression)))
+                    },
+                    None | Some(&Token::Separator) => {
+                        Ok(Some(AST::IHasA(ident, Expr::Value(Value::Noob))))
+                    },
+                    _ => Err(Error::Trailing)
+                }
             },
             Some(&Token::Ident(_)) => {
                 if let Some(Token::Ident(ident)) = self.iter.next() {
@@ -191,6 +208,35 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 self.expect(Token::Oic)?;
                 Ok(Some(AST::Wtf(omg, omgwtf)))
             },
+            Some(&Token::ImInYr) => {
+                self.iter.next();
+                let label = self.expect_ident()?;
+                let operation = match self.iter.next() {
+                    Some(Token::Uppin) => Operation::Uppin,
+                    Some(Token::Nerfin) => Operation::Nerfin,
+                    Some(Token::IIz) => Operation::IIz(self.expect_ident()?),
+                    _ => return Err(Error::ExpectedKind("operation"))
+                };
+                self.expect(Token::Yr)?;
+                let var = self.expect_ident()?;
+                if let Operation::IIz(_) = operation {
+                    self.expect(Token::Mkay)?;
+                }
+                let condition = match self.iter.peek() {
+                    Some(&Token::Wile) => { self.iter.next(); Some(self.expect_expr()?) },
+                    Some(&Token::Til) => { self.iter.next(); Some(Expr::Not(Box::new(self.expect_expr()?))) },
+                    Some(&Token::Separator) => None,
+                    _ => return Err(Error::ExpectedKind("condition"))
+                };
+                self.expect(Token::Separator)?;
+                let block = self.block(&[Token::ImOuttaYr])?;
+                self.expect(Token::ImOuttaYr)?;
+                let label2 = self.expect_ident()?;
+                if label != label2 {
+                    return Err(Error::LabelMismatch(label, label2));
+                }
+                Ok(Some(AST::ImInYr(operation, var, condition, block)))
+            },
             Some(&Token::Visible) => {
                 self.iter.next();
                 let mut exprs = Vec::new();
@@ -206,11 +252,8 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             },
             Some(&Token::Gimmeh) => {
                 self.iter.next();
-                if let Some(Token::Ident(ident)) = self.iter.next() {
-                    Ok(Some(AST::Gimmeh(ident)))
-                } else {
-                    Err(Error::ExpectedKind("ident"))
-                }
+                let ident = self.expect_ident()?;
+                Ok(Some(AST::Gimmeh(ident)))
             },
             _ => Ok(self.expression()?.map(|expr| AST::It(expr)))
         }
@@ -238,9 +281,6 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             }
         }
         Ok(all)
-    }
-    fn expect_expr(&mut self) -> Result<Expr> {
-        self.expression()?.ok_or(Error::ExpectedKind("expression"))
     }
     fn expression(&mut self) -> Result<Option<Expr>> {
         macro_rules! x_of {
@@ -386,21 +426,18 @@ mod tests {
                         Token::Oic, Token::Separator,
                 Token::Oic
             ]).unwrap(),
-            &[
-                AST::It(Expr::Value(Value::Troof(true))),
-                AST::ORly(
-                    vec![AST::It(Expr::Value(Value::Numbr(1))),
-                         AST::It(Expr::Value(Value::Numbr(3)))],
-                    vec![(Expr::Value(Value::Troof(false)),
-                          vec![AST::It(Expr::Value(Value::Numbr(3)))])],
-                    vec![AST::It(Expr::Value(Value::Troof(true))),
-                         AST::ORly(
-                             vec![AST::It(Expr::Value(Value::Numbr(7)))],
-                             Vec::new(),
-                             Vec::new()
-                         )]
-                )
-            ]
+            &[AST::It(Expr::Value(Value::Troof(true))),
+              AST::ORly(
+                  vec![AST::It(Expr::Value(Value::Numbr(1))),
+                       AST::It(Expr::Value(Value::Numbr(3)))],
+                  vec![(Expr::Value(Value::Troof(false)),
+                        vec![AST::It(Expr::Value(Value::Numbr(3)))])],
+                  vec![AST::It(Expr::Value(Value::Troof(true))),
+                       AST::ORly(
+                           vec![AST::It(Expr::Value(Value::Numbr(7)))],
+                           Vec::new(),
+                           Vec::new()
+                       )])]
         );
     }
     #[test]
@@ -423,20 +460,48 @@ mod tests {
                     Token::Gtfo, Token::Separator,
                 Token::Oic
             ]).unwrap(),
-            &[
-                AST::It(Expr::SumOf(Box::new(Expr::Value(Value::Numbr(1))), Box::new(Expr::Value(Value::Numbr(3))))),
-                AST::Wtf(
-                    vec![(Expr::Value(Value::Numbr(1)),
-                        vec![AST::Visible(vec![Expr::Value(Value::Yarn("WHAT, NO".to_string()))], true)]),
-                         (Expr::Value(Value::Numbr(2)), vec![]),
-                         (Expr::Value(Value::Numbr(3)),
-                        vec![AST::Visible(vec![Expr::Value(Value::Yarn("R U STUPID?".to_string()))], true), AST::Gtfo]),
-                         (Expr::Value(Value::Numbr(4)),
-                        vec![AST::Visible(vec![Expr::Value(Value::Yarn("CORREC!".to_string()))], true), AST::Gtfo])],
-                     vec![AST::Visible(vec![Expr::Value(Value::Yarn("IDFK".to_string()))], true),
-                          AST::Gtfo]
-                )
-            ]
+            &[AST::It(Expr::SumOf(Box::new(Expr::Value(Value::Numbr(1))), Box::new(Expr::Value(Value::Numbr(3))))),
+              AST::Wtf(
+                  vec![(Expr::Value(Value::Numbr(1)),
+                      vec![AST::Visible(vec![Expr::Value(Value::Yarn("WHAT, NO".to_string()))], true)]),
+                       (Expr::Value(Value::Numbr(2)), vec![]),
+                       (Expr::Value(Value::Numbr(3)),
+                      vec![AST::Visible(vec![Expr::Value(Value::Yarn("R U STUPID?".to_string()))], true), AST::Gtfo]),
+                       (Expr::Value(Value::Numbr(4)),
+                      vec![AST::Visible(vec![Expr::Value(Value::Yarn("CORREC!".to_string()))], true), AST::Gtfo])],
+                   vec![AST::Visible(vec![Expr::Value(Value::Yarn("IDFK".to_string()))], true),
+                        AST::Gtfo]
+              )]
+        );
+    }
+    #[test]
+    fn im_in_yr() {
+        assert_eq!(
+            parse(vec![
+                Token::ImInYr, Token::Ident("LOOP".to_string()), Token::Uppin, Token::Yr, Token::Ident("VAR".to_string()),
+                Token::Til, Token::BothSaem, Token::Ident("VAR".to_string()), Token::An, Token::Value(Value::Numbr(5)),
+                Token::Separator,
+                Token::Visible, Token::Ident("VAR".to_string()), Token::Separator,
+                Token::ImOuttaYr, Token::Ident("LOOP".to_string())
+            ]).unwrap(),
+            &[AST::ImInYr(Operation::Uppin, String::from("VAR"),
+                  Some(Expr::Not(Box::new(Expr::BothSaem(
+                      Box::new(Expr::Var("VAR".to_string())),
+                      Box::new(Expr::Value(Value::Numbr(5))))))),
+                  vec![AST::Visible(vec![Expr::Var("VAR".to_string())], true)])]
+        );
+    }
+    #[test]
+    fn inf_loop() {
+        assert_eq!(
+            parse(vec![
+                Token::ImInYr, Token::Ident("LOOP".to_string()), Token::Uppin, Token::Yr, Token::Ident("VAR".to_string()),
+                Token::Separator,
+                Token::Visible, Token::Ident("VAR".to_string()), Token::Separator,
+                Token::ImOuttaYr, Token::Ident("LOOP".to_string())
+            ]).unwrap(),
+            &[AST::ImInYr(Operation::Uppin, String::from("VAR"), None,
+                  vec![AST::Visible(vec![Expr::Var("VAR".to_string())], true)])]
         );
     }
 }

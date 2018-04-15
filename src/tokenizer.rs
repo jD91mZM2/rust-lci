@@ -177,6 +177,18 @@ pub enum Token {
     OmgWtf,
     Gtfo,
 
+    ImInYr,
+    Uppin,
+    Nerfin,
+    Til,
+    Wile,
+    ImOuttaYr,
+
+    HowIzI,
+    Yr,
+    IfUSaySo,
+    IIz,
+
     Visible,
     Exclamation,
     Gimmeh
@@ -348,11 +360,16 @@ impl<I: Iterator<Item = char> + Clone> Tokenizer<I> {
             "IT" => return Ok(Some(Token::It)),
             "I" => {
                 let mut clone = self.clone();
-                if clone.word() == "HAS" {
-                    if clone.word() == "A" {
+                match &*clone.word() {
+                    "HAS" => if clone.word() == "A" {
                         *self = clone;
                         return Ok(Some(Token::IHasA));
-                    }
+                    },
+                    "IZ" => {
+                        *self = clone;
+                        return Ok(Some(Token::IIz));
+                    },
+                    _ => ()
                 }
             },
             "ITZ" => return Ok(Some(Token::Itz)),
@@ -420,6 +437,45 @@ impl<I: Iterator<Item = char> + Clone> Tokenizer<I> {
             "OMG" => return Ok(Some(Token::Omg)),
             "OMGWTF" => return Ok(Some(Token::OmgWtf)),
             "GTFO" => return Ok(Some(Token::Gtfo)),
+            "IM" => {
+                let mut clone = self.clone();
+                match &*clone.word() {
+                    "IN" => if clone.word() == "YR" {
+                        *self = clone;
+                        return Ok(Some(Token::ImInYr));
+                    },
+                    "OUTTA" => if clone.word() == "YR" {
+                        *self = clone;
+                        return Ok(Some(Token::ImOuttaYr));
+                    },
+                    _ => ()
+                }
+            },
+            "UPPIN" => return Ok(Some(Token::Uppin)),
+            "NERFIN" => return Ok(Some(Token::Nerfin)),
+            "YR" => return Ok(Some(Token::Yr)),
+            "TIL" => return Ok(Some(Token::Til)),
+            "WILE" => return Ok(Some(Token::Wile)),
+            "HOW" => {
+                let mut clone = self.clone();
+                if clone.word() == "IZ" {
+                    if clone.word() == "I" {
+                        *self = clone;
+                        return Ok(Some(Token::HowIzI));
+                    }
+                }
+            },
+            "IF" => {
+                let mut clone = self.clone();
+                if clone.word() == "U" {
+                    if clone.word() == "SAY" {
+                        if clone.word() == "SO" {
+                            *self = clone;
+                            return Ok(Some(Token::IfUSaySo));
+                        }
+                    }
+                }
+            },
             "VISIBLE" => return Ok(Some(Token::Visible)),
             "!" => return Ok(Some(Token::Exclamation)),
             "GIMMEH" => return Ok(Some(Token::Gimmeh)),
@@ -580,6 +636,40 @@ mod tests {
                     Token::Gtfo, Token::Separator,
                 Token::Oic
             ]
-        )
+        );
+    }
+    #[test]
+    fn loops() {
+        assert_eq!(
+            tokenize("\
+                IM IN YR LOOP UPPIN YR VAR TIL BOTH SAEM VAR AN 5
+                    VISIBLE VAR
+                IM OUTTA YR LOOP\
+            ").unwrap(),
+            &[Token::ImInYr, Token::Ident("LOOP".to_string()), Token::Uppin, Token::Yr, Token::Ident("VAR".to_string()),
+              Token::Til, Token::BothSaem, Token::Ident("VAR".to_string()), Token::An, Token::Value(Value::Numbr(5)),
+              Token::Separator,
+              Token::Visible, Token::Ident("VAR".to_string()), Token::Separator,
+              Token::ImOuttaYr, Token::Ident("LOOP".to_string())]
+        );
+    }
+    #[test]
+    fn functions() {
+        assert_eq!(
+            tokenize("\
+                HOW IZ I SCREAMING YR STUFF
+                    VISIBLE STUFF \"!\"
+                IF U SAY SO
+
+                I IZ SCREAMING \"STUFF\" MKAY\
+            ").unwrap(),
+            &[Token::HowIzI, Token::Ident("SCREAMING".to_string()), Token::Yr, Token::Ident("STUFF".to_string()),
+              Token::Separator,
+              Token::Visible, Token::Ident("STUFF".to_string()), Token::Value(Value::Yarn("!".to_string())),
+              Token::Separator,
+              Token::IfUSaySo, Token::Separator,
+              Token::Separator,
+              Token::IIz, Token::Ident("SCREAMING".to_string()), Token::Value(Value::Yarn("STUFF".to_string())), Token::Mkay]
+        );
     }
 }
