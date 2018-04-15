@@ -83,19 +83,22 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
     fn call_func(&self, name: &str, args: Vec<Value>) -> Result<Value> {
         let mut me = self;
         Ok(loop {
-            let mut funcs = me.funcs.borrow_mut();
-            if let Some(the_func) = funcs.get_mut(name) {
-                if args.len() != the_func.args.len() {
-                    return Err(Error::InvalidUsage(name.to_string(), the_func.args.len()));
-                }
+            let block = match me.funcs.borrow_mut().get_mut(name) {
+                None => None,
+                Some(the_func) => {
+                    if args.len() != the_func.args.len() {
+                        return Err(Error::InvalidUsage(name.to_string(), the_func.args.len()));
+                    }
 
-                let mut vars = me.vars.borrow_mut();
-                for (i, arg) in args.iter().enumerate() {
-                    vars.insert(the_func.args[i].clone(), arg.clone());
+                    let mut vars = me.vars.borrow_mut();
+                    for (i, arg) in args.iter().enumerate() {
+                        vars.insert(the_func.args[i].clone(), arg.clone());
+                    }
+                    Some(the_func.block.clone())
                 }
-                drop(vars);
-
-                break match me.eval_all(the_func.block.clone())? {
+            };
+            if let Some(block) = block {
+                break match me.eval_all(block)? {
                     Return::None => me.it.borrow().clone(),
                     Return::Gtfo => Value::Noob,
                     Return::Value(val) => val
@@ -237,7 +240,7 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
                         return self.scope().eval_all(block);
                     }
                 }
-                self.scope().eval_all(nowai)?;
+                return self.scope().eval_all(nowai);
             },
             AST::Wtf(omg, omgwtf) => {
                 let mut matched = false;
@@ -252,7 +255,7 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
                         }
                     }
                 }
-                self.scope().eval_all(omgwtf)?;
+                return self.scope().eval_all(omgwtf);
             },
             AST::ImInYr(operation, var, condition, block) => {
                 let mut scope = self.scope();

@@ -60,7 +60,8 @@ impl Value {
             Value::YarnRaw(_) => panic!("yarn not interpolated yet"),
             Value::Numbr(n) => Some(n.to_string()),
             Value::Numbar(n) => Some(n.to_string()),
-            Value::Troof(b) => Some(b.to_string())
+            Value::Troof(true) => Some(String::from("WIN")),
+            Value::Troof(false) => Some(String::from("FAIL"))
         }
     }
     pub fn cast_numbr(&self) -> Option<i64> {
