@@ -124,6 +124,17 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     }
     fn statement(&mut self) -> Result<Option<AST>> {
         match self.iter.peek() {
+            Some(&Token::Hai) => {
+                self.iter.next();
+                match self.iter.next() {
+                    Some(Token::Value(_)) => Ok(None),
+                    _ => return Err(Error::ExpectedKind("numbar"))
+                }
+            },
+            Some(&Token::KThxBye) => {
+                self.iter.next();
+                Ok(None)
+            },
             Some(&Token::Gtfo) => {
                 self.iter.next();
                 Ok(Some(AST::Gtfo))

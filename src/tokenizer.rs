@@ -10,12 +10,12 @@ use unic_ucd_name::Name as UnicName;
 pub enum Error {
     #[fail(display = "invalid character in identifier: {}", _0)]
     InvalidIdent(char),
+    #[fail(display = "invalid characters in interpolation: {:?}", _0)]
+    InvalidInterpolation(String),
     #[fail(display = "invalid number: {:?}", _0)]
     InvalidNumber(String),
     #[fail(display = "invalid unicode character: {}", _0)]
     InvalidUnicode(String),
-    #[fail(display = "invalid characters in interpolation: {:?}", _0)]
-    InvalidInterpolation(String),
     #[fail(display = "unclosed comment")]
     UnclosedComment,
     #[fail(display = "unclosed interpolation in string")]
@@ -140,6 +140,8 @@ pub enum Token {
     Ident(String),
     Value(Value),
 
+    Hai,
+    KThxBye,
     Separator,
 
     IHasA,
@@ -333,6 +335,8 @@ impl<I: Iterator<Item = char> + Clone> Tokenizer<I> {
 
         let word = self.word();
         match &*word {
+            "HAI" => return Ok(Some(Token::Hai)),
+            "KTHXBYE" => return Ok(Some(Token::KThxBye)),
             "BTW" => {
                 loop {
                     match self.iter.next() {
@@ -506,7 +510,7 @@ impl<I: Iterator<Item = char> + Clone> Tokenizer<I> {
                 }
                 return Ok(Some(Token::Ident(word)));
             },
-            '0'...'9' => {
+            '-' | '0'...'9' => {
                 if let Ok(num) = word.parse::<i64>() {
                     return Ok(Some(Token::Value(Value::Numbr(num))));
                 } else if let Ok(num) = word.parse::<f64>() {
@@ -553,9 +557,10 @@ mod tests {
     #[test]
     fn primitives() {
         assert_eq!(
-            tokenize("1, 2.3, WIN, FAIL").unwrap(),
+            tokenize("1, -5, 2.3, WIN, FAIL").unwrap(),
             &[
                 Token::Value(Value::Numbr(1)), Token::Separator,
+                Token::Value(Value::Numbr(-5)), Token::Separator,
                 Token::Value(Value::Numbar(2.3)), Token::Separator,
                 Token::Value(Value::Troof(true)), Token::Separator,
                 Token::Value(Value::Troof(false))
