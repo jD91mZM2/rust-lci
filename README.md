@@ -1,4 +1,4 @@
-# rust-lci
+# rust-lci [WebAssembly Demo](https://jd91mzm2.github.io/lolcode)
 
 *A LOLCODE interpreter written in Rust*
 

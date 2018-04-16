@@ -102,6 +102,10 @@ impl Value {
             Value::Troof(b) => b
         }
     }
+    /// Interpolate a YARN value at evaluation time.
+    /// This does nothing if it's not a YARN or if it already has
+    /// been interpolated.
+    /// Returns any missing variable in the interpolation, if any.
     pub fn interpolate<F>(&mut self, lookup: F) -> Option<String>
         where F: Fn(&str) -> Option<Value>
     {
@@ -200,7 +204,7 @@ pub enum Token {
 
 #[derive(Clone)]
 pub struct Tokenizer<I: Iterator<Item = char> + Clone> {
-    iter: Peekable<I>
+    pub iter: Peekable<I>
 }
 
 fn is_space(c: char) -> bool {
@@ -236,6 +240,7 @@ impl<I: Iterator<Item = char> + Clone> Tokenizer<I> {
             }
         }
     }
+    /// Read one token from the input
     pub fn next(&mut self) -> Result<Option<Token>> {
         let c = match self.peek() {
             Some(c) => c,
@@ -525,8 +530,9 @@ impl<I: Iterator<Item = char> + Clone> Tokenizer<I> {
     }
 }
 
-pub fn tokenize(input: &str) -> Result<Vec<Token>> {
-    let mut tokenizer = Tokenizer { iter: input.chars().peekable() };
+/// Convenience function for reading all tokens from `input`
+pub fn tokenize<I: Iterator<Item = char> + Clone>(input: I) -> Result<Vec<Token>> {
+    let mut tokenizer = Tokenizer { iter: input.peekable() };
     let mut tokens = Vec::new();
     while let Some(token) = tokenizer.next()? {
         tokens.push(token);

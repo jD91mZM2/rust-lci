@@ -71,9 +71,10 @@ pub enum AST {
 }
 
 pub struct Parser<I: Iterator<Item = Token>> {
-    iter: Peekable<I>
+    pub iter: Peekable<I>
 }
 impl<I: Iterator<Item = Token>> Parser<I> {
+    /// Read one line from the AST, including trailing line separator
     pub fn line(&mut self) -> Result<Option<AST>> {
         let stmt = self.statement()?;
         match self.iter.next() {
@@ -396,6 +397,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     }
 }
 
+/// Convenience function for reading all lines of AST from `input`
 pub fn parse<I: IntoIterator<Item = Token>>(input: I) -> Result<Vec<AST>> {
     let mut parser = Parser { iter: input.into_iter().peekable() };
     let mut parsed = Vec::new();
