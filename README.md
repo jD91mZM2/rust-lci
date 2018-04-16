@@ -1,4 +1,4 @@
-# rust-lci [WebAssembly Demo](https://jd91mzm2.github.io/lolcode)
+# rust-lci [![Crates.io](https://img.shields.io/crates/v/lci.svg)](https://crates.io/crates/lci) ![Travis](https://img.shields.io/travis/jD91mZM2/rust-lci.svg) [![WASM Demo](https://img.shields.io/badge/Demo-WASM-%23FF0000.svg)](https://jd91mzm2.github.io/lolcode)
 
 *A LOLCODE interpreter written in Rust*
 
