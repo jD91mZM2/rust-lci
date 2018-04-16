@@ -539,6 +539,10 @@ pub fn tokenize<I: Iterator<Item = char> + Clone>(input: I) -> Result<Vec<Token>
     }
     Ok(tokens)
 }
+/// Convenience function for reading all tokens from `input` from a string
+pub fn tokenize_str(input: &str) -> Result<Vec<Token>> {
+    tokenize(input.chars())
+}
 
 #[cfg(test)]
 mod tests {
@@ -546,14 +550,14 @@ mod tests {
     #[test]
     fn yarns() {
         assert_eq!(
-            tokenize(r#" "Hello World :) How are you :>? I'm:: :"fine:"" "#).unwrap(),
+            tokenize_str(r#" "Hello World :) How are you :>? I'm:: :"fine:"" "#).unwrap(),
             &[Token::Value(Value::Yarn("Hello World \n How are you \t? I'm: \"fine\"".to_string()))]
         );
     }
     #[test]
     fn interpolation() {
         assert_eq!(
-            tokenize(r#" ":[SNOWMAN] is :(1F60A). He says:: :{something}" "#).unwrap(),
+            tokenize_str(r#" ":[SNOWMAN] is :(1F60A). He says:: :{something}" "#).unwrap(),
             &[Token::Value(Value::YarnRaw(vec![
                 Interpolate::Str("☃ is 😊. He says: ".to_string()),
                 Interpolate::Var("something".to_string())
@@ -563,7 +567,7 @@ mod tests {
     #[test]
     fn primitives() {
         assert_eq!(
-            tokenize("1, -5, 2.3, WIN, FAIL").unwrap(),
+            tokenize_str("1, -5, 2.3, WIN, FAIL").unwrap(),
             &[
                 Token::Value(Value::Numbr(1)), Token::Separator,
                 Token::Value(Value::Numbr(-5)), Token::Separator,
@@ -576,25 +580,25 @@ mod tests {
     #[test]
     fn assign() {
         assert_eq!(
-            tokenize("I HAS A VAR ITZ 12           BTW this is a comment").unwrap(),
+            tokenize_str("I HAS A VAR ITZ 12           BTW this is a comment").unwrap(),
             &[Token::IHasA, Token::Ident("VAR".to_string()), Token::Itz, Token::Value(Value::Numbr(12))]
         );
         assert_eq!(
-            tokenize("VAR R 12").unwrap(),
+            tokenize_str("VAR R 12").unwrap(),
             &[Token::Ident("VAR".to_string()), Token::R, Token::Value(Value::Numbr(12))]
         );
     }
     #[test]
     fn sum_of() {
         assert_eq!(
-            tokenize("SUM OF OBTW hi TLDR 2 AN 4").unwrap(),
+            tokenize_str("SUM OF OBTW hi TLDR 2 AN 4").unwrap(),
             &[Token::SumOf, Token::Value(Value::Numbr(2)), Token::An, Token::Value(Value::Numbr(4))]
         );
     }
     #[test]
     fn orly() {
         assert_eq!(
-            tokenize("\
+            tokenize_str("\
                 BOTH SAEM 1 AN 1, O RLY?
                     YA RLY, RESULT R \"YES\"
                     MEBBE BOTH SAEM 1 AN 2, RESULT R \"CLOSE\"
@@ -622,7 +626,7 @@ mod tests {
     #[test]
     fn wtf() {
         assert_eq!(
-            tokenize("\
+            tokenize_str("\
                 SUM OF 1 AN 3
                 WTF?
                 OMG 1
@@ -661,7 +665,7 @@ mod tests {
     #[test]
     fn loops() {
         assert_eq!(
-            tokenize("\
+            tokenize_str("\
                 IM IN YR LOOP UPPIN YR VAR TIL BOTH SAEM VAR AN 5
                     VISIBLE VAR
                 IM OUTTA YR LOOP\
@@ -676,7 +680,7 @@ mod tests {
     #[test]
     fn functions() {
         assert_eq!(
-            tokenize("\
+            tokenize_str("\
                 HOW IZ I SCREAMING YR STUFF
                     VISIBLE STUFF \"!\"
                 IF U SAY SO
