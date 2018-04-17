@@ -21,7 +21,9 @@ use std::io;
 /// Convenience function for tokenizing, parsing, and evaluating `code`
 pub fn eval<R: io::BufRead, W: io::Write>(code: &str, stdin: R, stdout: W) -> Result<(), Error> {
     let tokens = tokenizer::tokenize(code.chars()).map_err(|err| Error::TokenizeError(err))?;
+    #[cfg(feature = "debug")] println!("{:#?}", tokens);
     let parsed = parser::parse(tokens).map_err(|err| Error::ParseError(err))?;
+    #[cfg(feature = "debug")] println!("{:#?}", parsed);
     let scope = eval::Scope::new(stdin, stdout);
     scope.eval_all(parsed).map_err(|err| Error::EvalError(err))?;
     Ok(())
@@ -40,5 +42,6 @@ mod tests {
     #[test]
     fn run_all() {
         assert_eq!(run(include_str!("../tests/fac.lol")), "120\n");
+        assert_eq!(run(include_str!("../tests/pow.lol")), "3125\n");
     }
 }

@@ -556,6 +556,17 @@ mod tests {
             &[AST::ImInYr(Operation::Uppin, String::from("VAR"), None,
                   vec![AST::Visible(vec![Expr::Var("VAR".to_string())], true)])]
         );
+        assert_eq!(
+            parse(vec![
+                Token::ImInYr, Token::Ident("LOOP".to_string()),
+                    Token::IIz, Token::Ident("CHANGIN".to_string()), Token::Yr, Token::Ident("VAR".to_string()), Token::Mkay,
+                Token::Separator,
+                Token::Visible, Token::Ident("VAR".to_string()), Token::Separator,
+                Token::ImOuttaYr, Token::Ident("LOOP".to_string())
+            ]).unwrap(),
+            &[AST::ImInYr(Operation::IIz("CHANGIN".to_string()), String::from("VAR"), None,
+                  vec![AST::Visible(vec![Expr::Var("VAR".to_string())], true)])]
+        );
     }
     #[test]
     fn how_iz_i() {

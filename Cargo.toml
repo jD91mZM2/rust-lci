@@ -10,3 +10,6 @@ version = "0.1.0"
 failure = "0.1.1"
 unic-char-range = "0.7.0"
 unic-ucd-name = "0.7.0"
+
+[features]
+debug = []
