@@ -3,8 +3,9 @@
 extern crate unic_ucd_name;
 
 pub mod eval;
-pub mod tokenizer;
 pub mod parser;
+pub mod tokenizer;
+pub mod types;
 
 #[derive(Debug, Fail)]
 pub enum Error {
@@ -55,7 +56,7 @@ pub fn capture<R, F>(code: &str, stdin: R, callback: F) -> Result<String, Error>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokenizer::Value;
+    use types::Value;
 
     fn run(code: &str) -> String {
         capture(code, io::empty(), |_| ()).expect("Running test failed")

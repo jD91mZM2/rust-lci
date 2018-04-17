@@ -2,7 +2,8 @@ use std::{
     iter::Peekable,
     result::Result as StdResult
 };
-use tokenizer::{Token, Value};
+use tokenizer::Token;
+use types::Value;
 
 #[derive(Debug, Fail)]
 pub enum Error {

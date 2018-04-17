@@ -1,9 +1,9 @@
 use std::{
-    borrow::Cow,
     char as stdchar,
     iter::Peekable,
     result::Result as StdResult
 };
+use types::{Interpolate, Value};
 use unic_ucd_name::Name as UnicName;
 
 #[derive(Debug, Fail)]
@@ -31,112 +31,6 @@ pub enum Error {
 }
 
 type Result<T> = StdResult<T, Error>;
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum Interpolate {
-    Str(String),
-    Var(String)
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum Value {
-    Noob,
-    Yarn(String),
-    YarnRaw(Vec<Interpolate>),
-    Numbr(i64),
-    Numbar(f64),
-    Troof(bool)
-}
-impl Default for Value {
-    fn default() -> Self {
-        Value::Noob
-    }
-}
-impl Value {
-    pub fn cast_yarn(self) -> Option<String> {
-        match self {
-            Value::Noob => None,
-            Value::Yarn(inner) => Some(inner),
-            Value::YarnRaw(_) => panic!("yarn not interpolated yet"),
-            Value::Numbr(n) => Some(n.to_string()),
-            Value::Numbar(n) => Some(n.to_string()),
-            Value::Troof(true) => Some(String::from("WIN")),
-            Value::Troof(false) => Some(String::from("FAIL"))
-        }
-    }
-    pub fn cast_numbr(&self) -> Option<i64> {
-        match *self {
-            Value::Noob => None,
-            Value::Yarn(ref inner) => Some(inner.parse().unwrap_or(0)),
-            Value::YarnRaw(_) => panic!("yarn not interpolated yet"),
-            Value::Numbr(n) => Some(n),
-            Value::Numbar(n) => Some(n as i64),
-            Value::Troof(b) => Some(b as i64)
-        }
-    }
-    pub fn cast_numbar(&self) -> Option<f64> {
-        match *self {
-            Value::Noob => None,
-            Value::Yarn(ref inner) => Some(inner.parse().unwrap_or(0.0)),
-            Value::YarnRaw(_) => panic!("yarn not interpolated yet"),
-            Value::Numbr(n) => Some(n as f64),
-            Value::Numbar(n) => Some(n),
-            Value::Troof(b) => Some(b as i64 as f64)
-        }
-    }
-    pub fn is_numbar(&self) -> bool {
-        match *self {
-            Value::Yarn(ref inner) => inner.parse::<f64>().is_ok(),
-            Value::YarnRaw(_) => panic!("yarn not interpolated yet"),
-            Value::Numbar(_) => true,
-            _ => false
-        }
-    }
-    pub fn cast_troof(&self) -> bool {
-        match *self {
-            Value::Noob => false,
-            Value::Yarn(ref inner) => inner.is_empty(),
-            Value::YarnRaw(_) => panic!("yarn not interpolated yet"),
-            Value::Numbr(n) => n == 0,
-            Value::Numbar(n) => n == 0.0,
-            Value::Troof(b) => b
-        }
-    }
-    /// Interpolate a YARN value at evaluation time.
-    /// This does nothing if it's not a YARN or if it already has
-    /// been interpolated.
-    /// Returns any missing variable in the interpolation, if any.
-    pub fn interpolate<F>(&mut self, lookup: F) -> Option<String>
-        where F: Fn(&str) -> Option<Value>
-    {
-        let mut string_ = None;
-        if let Value::YarnRaw(ref parts) = *self {
-            let mut capacity = 0;
-            for part in parts {
-                if let Interpolate::Str(ref part) = *part {
-                    capacity += part.len();
-                }
-            }
-            let mut string = String::with_capacity(capacity);
-            for part in parts {
-                string.push_str(&match *part {
-                    Interpolate::Str(ref part) => Cow::Borrowed(part),
-                    Interpolate::Var(ref var) => Cow::Owned(
-                        match lookup(var).and_then(Self::cast_yarn) {
-                            Some(val) => val,
-                            None => return Some(var.clone())
-                        }
-                    )
-                });
-            }
-            string_ = Some(string);
-        }
-        if let Some(string) = string_ {
-            *self = Value::Yarn(string);
-        }
-        None
-    }
-}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Token {

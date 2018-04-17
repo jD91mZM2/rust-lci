@@ -5,7 +5,7 @@ use std::{
     io,
     result::Result as StdResult
 };
-use tokenizer::Value;
+use types::Value;
 
 #[derive(Debug, Fail)]
 pub enum Error {
@@ -235,7 +235,7 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
             },
 
             Expr::BothSaem(one, two) => self.apply_any(*one, *two, |x, y| x == y),
-            Expr::Diffrint(one, two) => self.apply_any(*one, *two, |x, y| x == y),
+            Expr::Diffrint(one, two) => self.apply_any(*one, *two, |x, y| x != y),
 
             Expr::Smoosh(exprs) => {
                 let mut result = String::new();
