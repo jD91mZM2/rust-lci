@@ -6,7 +6,7 @@ pub enum Interpolate {
     Var(String)
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     Noob,
     Yarn(String),
@@ -78,6 +78,30 @@ impl Value {
             Value::Troof(b) => b
         }
     }
+    /// Check if the values are equal (used by the BOTH SAEM operator).
+    /// This does auto-coercion, unlike the PartialEq trait implementation.
+    pub fn equals(&self, other: &Self) -> bool {
+        if let Value::YarnRaw(_) = *self  { panic!("yarn not interpolated yet"); }
+        if let Value::YarnRaw(_) = *other { panic!("yarn not interpolated yet"); }
+
+        if let Value::Noob = *self {
+            if let Value::Noob = *other {
+                return true;
+            }
+        }
+        if let Value::Troof(b) = *self {
+            if let Value::Troof(b2) = *other {
+                return b == b2;
+            }
+        }
+        if self.is_numbar() || other.is_numbar() {
+            self.cast_numbar() == other.cast_numbar()
+        } else if self.is_numbr() || other.is_numbr() {
+            self.cast_numbr() == other.cast_numbr()
+        } else {
+            self.cast_yarn() == other.cast_yarn()
+        }
+    }
     /// Interpolate a YARN value at evaluation time.
     /// This does nothing if it's not a YARN or if it already has
     /// been interpolated.
@@ -113,29 +137,5 @@ impl Value {
             *self = Value::Yarn(string);
         }
         None
-    }
-}
-impl PartialEq for Value {
-    fn eq(&self, other: &Self) -> bool {
-        if let Value::YarnRaw(_) = *self  { panic!("yarn not interpolated yet"); }
-        if let Value::YarnRaw(_) = *other { panic!("yarn not interpolated yet"); }
-
-        if let Value::Noob = *self {
-            if let Value::Noob = *other {
-                return true;
-            }
-        }
-        if let Value::Troof(b) = *self {
-            if let Value::Troof(b2) = *other {
-                return b == b2;
-            }
-        }
-        if self.is_numbar() || other.is_numbar() {
-            self.cast_numbar() == other.cast_numbar()
-        } else if self.is_numbr() || other.is_numbr() {
-            self.cast_numbr() == other.cast_numbr()
-        } else {
-            self.cast_yarn() == other.cast_yarn()
-        }
     }
 }

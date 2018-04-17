@@ -64,7 +64,7 @@ mod tests {
     #[test]
     fn run_all() {
         assert_eq!(run(include_str!("../tests/fac.lol")), "120\n");
-        assert_eq!(run(include_str!("../tests/pow.lol")), "3125\n");
+        assert_eq!(run(include_str!("../tests/pow.lol")), "32\n");
     }
 
     #[test]
