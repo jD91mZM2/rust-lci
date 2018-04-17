@@ -4,7 +4,7 @@ description = "A LOLCODE interpreter written in Rust"
 license-file = "LICENSE"
 name = "lci"
 repository = "https://github.com/jD91mZM2/rust-lci"
-version = "0.1.1"
+version = "0.1.2"
 
 [dependencies]
 failure = "0.1.1"

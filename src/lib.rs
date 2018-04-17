@@ -43,11 +43,12 @@ pub fn eval<R, W, F>(code: &str, stdin: R, stdout: W, callback: F) -> Result<(),
 }
 
 /// Convenience function for capturing the output of `eval`
-pub fn capture<F>(code: &str, callback: F) -> Result<String, Error>
-    where F: FnOnce(&mut EvalParams<io::Empty, &mut Vec<u8>>)
+pub fn capture<R, F>(code: &str, stdin: R, callback: F) -> Result<String, Error>
+    where R: io::BufRead,
+          F: FnOnce(&mut EvalParams<R, &mut Vec<u8>>)
 {
     let mut output = Vec::new();
-    eval(code, io::empty(), &mut output, callback)?;
+    eval(code, stdin, &mut output, callback)?;
     Ok(String::from_utf8(output).expect("Program (somehow) returned non-utf8 data"))
 }
 
@@ -57,7 +58,7 @@ mod tests {
     use tokenizer::Value;
 
     fn run(code: &str) -> String {
-        capture(code, |_| ()).expect("Running test failed")
+        capture(code, io::empty(), |_| ()).expect("Running test failed")
     }
     #[test]
     fn run_all() {
@@ -68,7 +69,7 @@ mod tests {
     #[test]
     fn rust_callback() {
         assert_eq!(
-            capture(include_str!("../tests/callback.lol"), |eval| {
+            capture(include_str!("../tests/callback.lol"), io::empty(), |eval| {
                 eval.bind_func("LOWERIN", Box::new(|values| {
                     Value::Yarn(values[0].clone().cast_yarn().unwrap().to_lowercase())
                 }));
