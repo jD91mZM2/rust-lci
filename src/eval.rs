@@ -214,6 +214,11 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
         self.apply_any(one, two, |x, y| apply(x.cast_troof(), y.cast_troof()))
     }
     pub fn eval_expr(&self, expr: Expr) -> Result<Value> {
+        macro_rules! apply_num {
+            ($one:expr, $two:expr, $func:ident, $op:tt) => {
+                self.apply_num(*$one, *$two, |x, y| Ok(x.$func(y)), |x, y| x $op y)
+            }
+        }
         match expr {
             Expr::It => Ok(self.it.borrow().clone()),
             Expr::Value(mut val) => {
@@ -237,9 +242,9 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
                 self.call_func(&name, args_val)
             },
 
-            Expr::SumOf(one, two) => self.apply_num(*one, *two, |x, y| Ok(x + y), |x, y| x + y),
-            Expr::DiffOf(one, two) => self.apply_num(*one, *two, |x, y| Ok(x - y), |x, y| x - y),
-            Expr::ProduktOf(one, two) => self.apply_num(*one, *two, |x, y| Ok(x * y), |x, y| x * y),
+            Expr::SumOf(one, two) => apply_num!(one, two, wrapping_add, +),
+            Expr::DiffOf(one, two) => apply_num!(one, two, wrapping_sub, -),
+            Expr::ProduktOf(one, two) => apply_num!(one, two, wrapping_mul, *),
             Expr::QuoshuntOf(one, two) => self.apply_num(*one, *two, |x, y| {
                 if y == 0 {
                     return Err(Error::DivideByZero);
