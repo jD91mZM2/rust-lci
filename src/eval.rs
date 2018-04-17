@@ -15,6 +15,8 @@ pub enum Error {
     InvalidCastLoop,
     #[fail(display = "function {:?} expected {} parameters", _0, _1)]
     InvalidUsage(String, usize),
+    #[fail(display = "io error: {}", _0)]
+    IoError(io::Error),
     #[fail(display = "can't shadow variable from the same scope: {:?}", _0)]
     ShadowVar(String),
     #[fail(display = "undefined function {:?}", _0)]
@@ -295,10 +297,7 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
                         Return::Gtfo => return Ok(Return::None),
                         val @ Return::Value(_) => return Ok(val)
                     }
-                    let val = scope.vars.borrow_mut()
-                        .entry(var.clone())
-                        .or_insert(Value::Numbr(0))
-                        .clone();
+                    let val = scope.vars.borrow_mut()[&var].clone();
                     let val = match operation {
                         Operation::Uppin => Value::Numbr(val.cast_numbr().ok_or(Error::InvalidCastLoop)? + 1),
                         Operation::Nerfin => Value::Numbr(val.cast_numbr().ok_or(Error::InvalidCastLoop)? - 1),
@@ -323,18 +322,18 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
                     result.push_str(&self.eval_expr(expr)?.cast_yarn().ok_or(Error::InvalidCast)?);
                 }
                 let stdout = &mut self.params().borrow_mut().stdout;
-                stdout.write_all(result.as_bytes()).unwrap();
+                stdout.write_all(result.as_bytes()).map_err(|err| Error::IoError(err))?;
                 if newline {
-                    stdout.write_all(b"\n").unwrap();
+                    stdout.write_all(b"\n").map_err(|err| Error::IoError(err))?;
                 } else {
-                    stdout.flush().unwrap();
+                    stdout.flush().map_err(|err| Error::IoError(err))?;
                 }
             },
             AST::Gimmeh(ident) => {
                 let stdin = &mut self.params().borrow_mut().stdin;
 
                 let mut text = String::new();
-                stdin.read_line(&mut text).unwrap();
+                stdin.read_line(&mut text).map_err(|err| Error::IoError(err))?;
 
                 let text = text.trim().to_string();
                 self.vars.borrow_mut().insert(ident, Value::Yarn(text));
