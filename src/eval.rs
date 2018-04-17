@@ -36,20 +36,31 @@ struct Function {
     block: Vec<AST>
 }
 
-pub struct Scope<'a, R: io::BufRead + 'a, W: io::Write + 'a> {
-    stdin: Option<RefCell<R>>,
-    stdout: Option<RefCell<W>>,
+/// Parameters global to the whole evaluation
+pub struct EvalParams<R: io::BufRead, W: io::Write> {
+    stdin: R,
+    stdout: W,
 
-    it: RefCell<Value>,
-    vars: RefCell<HashMap<String, Value>>,
-    funcs: RefCell<HashMap<String, Function>>,
-    parent: Option<&'a Scope<'a, R, W>>
+    funcs: HashMap<String, Box<FnMut(Vec<Value>) -> Value>>
 }
-impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
+impl<R: io::BufRead, W: io::Write> EvalParams<R, W> {
     pub fn new(stdin: R, stdout: W) -> Self {
         Self {
-            stdin: Some(RefCell::new(stdin)),
-            stdout: Some(RefCell::new(stdout)),
+            stdin: stdin,
+            stdout: stdout,
+
+            funcs: HashMap::new()
+        }
+    }
+    /// Bind a LOLCODE function to a rust closure
+    pub fn bind_func<S: Into<String>>(&mut self, name: S, func: Box<FnMut(Vec<Value>) -> Value>) {
+        self.funcs.insert(name.into(), func);
+    }
+    /// Create a new top-level scope with this evaluator.
+    /// Use the return value of this to evaluate AST.
+    pub fn scope<'a>(self) -> Scope<'a, R, W> {
+        Scope {
+            params: Some(RefCell::new(self)),
 
             it: RefCell::new(Value::Noob),
             vars: RefCell::new(HashMap::new()),
@@ -57,15 +68,26 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
             parent: None
         }
     }
+}
 
-    fn top_parent(&self) -> &Self {
+/// Parameters local to the current scope
+pub struct Scope<'a, R: io::BufRead + 'a, W: io::Write + 'a> {
+    params: Option<RefCell<EvalParams<R, W>>>,
+
+    it: RefCell<Value>,
+    vars: RefCell<HashMap<String, Value>>,
+    funcs: RefCell<HashMap<String, Function>>,
+    parent: Option<&'a Scope<'a, R, W>>
+}
+impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
+    pub fn params(&self) -> &RefCell<EvalParams<R, W>> {
         let mut me = self;
         while let Some(parent) = me.parent {
             me = parent;
         }
-        me
+        me.params.as_ref().expect("Missing 'params' on top-level scope")
     }
-    fn find_var<F, T>(&self, name: &str, apply: F) -> Option<T>
+    pub fn find_var<F, T>(&self, name: &str, apply: F) -> Option<T>
         where F: FnOnce(&mut Value) -> T
     {
         let mut me = self;
@@ -80,7 +102,15 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
             }
         }
     }
-    fn call_func(&self, name: &str, args: Vec<Value>) -> Result<Value> {
+    pub fn call_func(&self, name: &str, args: Vec<Value>) -> Result<Value> {
+        {
+            // Check for any library defined functions
+            let params = self.params();
+            let funcs = &mut params.borrow_mut().funcs;
+            if let Some(func) = funcs.get_mut(name) {
+                return Ok(func(args));
+            }
+        }
         let mut me = self;
         Ok(loop {
             let block = match me.funcs.borrow_mut().get_mut(name) {
@@ -110,10 +140,9 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
             }
         })
     }
-    fn scope(&'a self) -> Self {
+    pub fn scope(&'a self) -> Self {
         Self {
-            stdin: None,
-            stdout: None,
+            params: None,
 
             it: self.it.clone(),
             vars: RefCell::new(HashMap::new()),
@@ -293,8 +322,7 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
                 for expr in exprs {
                     result.push_str(&self.eval_expr(expr)?.cast_yarn().ok_or(Error::InvalidCast)?);
                 }
-                let stdout = self.top_parent().stdout.as_ref().expect("No stdout handle on Scope");
-                let mut stdout = stdout.borrow_mut();
+                let stdout = &mut self.params().borrow_mut().stdout;
                 stdout.write_all(result.as_bytes()).unwrap();
                 if newline {
                     stdout.write_all(b"\n").unwrap();
@@ -303,8 +331,7 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
                 }
             },
             AST::Gimmeh(ident) => {
-                let stdin = self.top_parent().stdin.as_ref().expect("No stdout handle on Scope");
-                let mut stdin = stdin.borrow_mut();
+                let stdin = &mut self.params().borrow_mut().stdin;
 
                 let mut text = String::new();
                 stdin.read_line(&mut text).unwrap();
@@ -315,6 +342,7 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
         }
         Ok(Return::None)
     }
+    /// Evaluate all lines of ASTs. You probably want to use this for running code.
     pub fn eval_all<I: IntoIterator<Item = AST>>(&self, asts: I) -> Result<Return> {
         for line in asts.into_iter() {
             match self.eval(line)? {

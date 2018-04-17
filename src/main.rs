@@ -29,7 +29,7 @@ fn main() {
     let stdout = io::stdout();
     let stdout = stdout.lock();
 
-    match lci::eval(&input, stdin, stdout) {
+    match lci::eval(&input, stdin, stdout, |_| ()) {
         Ok(()) => (),
         Err(err) => {
             eprintln!("{}", err);
