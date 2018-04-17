@@ -9,6 +9,8 @@ use types::Value;
 
 #[derive(Debug, Fail)]
 pub enum Error {
+    #[fail(display = "attempt to divide by zero")]
+    DivideByZero,
     #[fail(display = "cannot cast value to that type")]
     InvalidCast,
     #[fail(display = "loop variable cannot be casted to numbr")]
@@ -17,6 +19,8 @@ pub enum Error {
     InvalidUsage(String, usize),
     #[fail(display = "io error: {}", _0)]
     IoError(io::Error),
+    #[fail(display = "recursion limit reached: can't go more than {} levels deep", _0)]
+    RecursionLimit(usize),
     #[fail(display = "can't shadow variable from the same scope: {:?}", _0)]
     ShadowVar(String),
     #[fail(display = "undefined function {:?}", _0)]
@@ -43,7 +47,9 @@ pub struct EvalParams<R: io::BufRead, W: io::Write> {
     stdin: R,
     stdout: W,
 
-    funcs: HashMap<String, Box<FnMut(Vec<Value>) -> Value>>
+    funcs: HashMap<String, (Option<usize>, Box<FnMut(Vec<Value>) -> Value>)>,
+    recursion_limit: usize,
+    recursion: usize
 }
 impl<R: io::BufRead, W: io::Write> EvalParams<R, W> {
     pub fn new(stdin: R, stdout: W) -> Self {
@@ -51,12 +57,21 @@ impl<R: io::BufRead, W: io::Write> EvalParams<R, W> {
             stdin: stdin,
             stdout: stdout,
 
-            funcs: HashMap::new()
+            funcs: HashMap::new(),
+            recursion_limit: 64,
+            recursion: 0
         }
     }
+    /// Set the recursion limit
+    pub fn set_recursion_limit(&mut self, limit: usize) {
+        self.recursion_limit = limit;
+    }
     /// Bind a LOLCODE function to a rust closure
-    pub fn bind_func<S: Into<String>>(&mut self, name: S, func: Box<FnMut(Vec<Value>) -> Value>) {
-        self.funcs.insert(name.into(), func);
+    pub fn bind_func<S, F>(&mut self, name: S, args: Option<usize>, func: F)
+        where S: Into<String>,
+              F: FnMut(Vec<Value>) -> Value + 'static
+    {
+        self.funcs.insert(name.into(), (args, Box::new(func)));
     }
     /// Create a new top-level scope with this evaluator.
     /// Use the return value of this to evaluate AST.
@@ -106,11 +121,23 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
     }
     pub fn call_func(&self, name: &str, args: Vec<Value>) -> Result<Value> {
         {
-            // Check for any library defined functions
             let params = self.params();
-            let funcs = &mut params.borrow_mut().funcs;
-            if let Some(func) = funcs.get_mut(name) {
+            let params = &mut params.borrow_mut();
+
+            // Check for any library defined functions
+            if let Some(&mut (nargs, ref mut func)) = params.funcs.get_mut(name) {
+                if let Some(nargs) = nargs {
+                    if args.len() != nargs {
+                        return Err(Error::InvalidUsage(name.to_string(), nargs));
+                    }
+                }
                 return Ok(func(args));
+            }
+
+            // Prevent stack overflow
+            params.recursion += 1;
+            if params.recursion > params.recursion_limit {
+                return Err(Error::RecursionLimit(params.recursion_limit));
             }
         }
         let mut me = self;
@@ -130,11 +157,16 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
                 }
             };
             if let Some(block) = block {
-                break match me.eval_all(block)? {
+                let val = match me.eval_all(block)? {
                     Return::None => me.it.borrow().clone(),
                     Return::Gtfo => Value::Noob,
                     Return::Value(val) => val
                 };
+                {
+                    let params = &mut me.params();
+                    params.borrow_mut().recursion -= 1;
+                }
+                break val;
             } else if let Some(parent) = me.parent {
                 me = parent;
             } else {
@@ -154,7 +186,7 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
     }
 
     fn apply_num<F1, F2>(&self, one: Expr, two: Expr, if_numbr: F1, if_numbar: F2) -> Result<Value>
-        where F1: FnOnce(i64, i64) -> i64,
+        where F1: FnOnce(i64, i64) -> Result<i64>,
               F2: FnOnce(f64, f64) -> f64
     {
         let one = self.eval_expr(one)?;
@@ -168,7 +200,7 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
             Ok(Value::Numbr(if_numbr(
                 one.cast_numbr().ok_or(Error::InvalidCast)?,
                 two.cast_numbr().ok_or(Error::InvalidCast)?
-            )))
+            )?))
         }
     }
     fn apply_any<F>(&self, one: Expr, two: Expr, apply: F) -> Result<Value>
@@ -205,13 +237,23 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
                 self.call_func(&name, args_val)
             },
 
-            Expr::SumOf(one, two) => self.apply_num(*one, *two, |x, y| x + y, |x, y| x + y),
-            Expr::DiffOf(one, two) => self.apply_num(*one, *two, |x, y| x - y, |x, y| x - y),
-            Expr::ProduktOf(one, two) => self.apply_num(*one, *two, |x, y| x * y, |x, y| x * y),
-            Expr::QuoshuntOf(one, two) => self.apply_num(*one, *two, |x, y| x / y, |x, y| x / y),
-            Expr::ModOf(one, two) => self.apply_num(*one, *two, |x, y| x % y, |x, y| x % y),
-            Expr::BiggrOf(one, two) => self.apply_num(*one, *two, |x, y| x.max(y), |x, y| x.max(y)),
-            Expr::SmallrOf(one, two) => self.apply_num(*one, *two, |x, y| x.min(y), |x, y| x.min(y)),
+            Expr::SumOf(one, two) => self.apply_num(*one, *two, |x, y| Ok(x + y), |x, y| x + y),
+            Expr::DiffOf(one, two) => self.apply_num(*one, *two, |x, y| Ok(x - y), |x, y| x - y),
+            Expr::ProduktOf(one, two) => self.apply_num(*one, *two, |x, y| Ok(x * y), |x, y| x * y),
+            Expr::QuoshuntOf(one, two) => self.apply_num(*one, *two, |x, y| {
+                if y == 0 {
+                    return Err(Error::DivideByZero);
+                }
+                Ok(x / y)
+            }, |x, y| x / y),
+            Expr::ModOf(one, two) => self.apply_num(*one, *two, |x, y| {
+                if y == 0 {
+                    return Err(Error::DivideByZero);
+                }
+                Ok(x % y)
+            }, |x, y| x % y),
+            Expr::BiggrOf(one, two) => self.apply_num(*one, *two, |x, y| Ok(x.max(y)), |x, y| x.max(y)),
+            Expr::SmallrOf(one, two) => self.apply_num(*one, *two, |x, y| Ok(x.min(y)), |x, y| x.min(y)),
 
             Expr::BothOf(one, two) => self.apply_bool(*one, *two, |x, y| x && y),
             Expr::EitherOf(one, two) => self.apply_bool(*one, *two, |x, y| x || y),

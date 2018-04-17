@@ -58,24 +58,37 @@ mod tests {
     use super::*;
     use types::Value;
 
-    fn run(code: &str) -> String {
-        capture(code, io::empty(), |_| ()).expect("Running test failed")
+    fn run(code: &str) -> Result<String, Error> {
+        capture(code, io::empty(), |_| ())
     }
+
     #[test]
     fn run_all() {
-        assert_eq!(run(include_str!("../tests/fac.lol")), "120\n");
-        assert_eq!(run(include_str!("../tests/pow.lol")), "32\n");
+        assert_eq!(run(include_str!("../tests/fac.lol")).expect("Running test failed"), "120\n");
+        assert_eq!(run(include_str!("../tests/pow.lol")).expect("Running test failed"), "32\n");
     }
 
     #[test]
     fn rust_callback() {
         assert_eq!(
             capture(include_str!("../tests/callback.lol"), io::empty(), |eval| {
-                eval.bind_func("LOWERIN", Box::new(|values| {
+                eval.bind_func("LOWERIN", Some(1), |values| {
                     Value::Yarn(values[0].clone().cast_yarn().unwrap().to_lowercase())
-                }));
+                });
             }).expect("Running test failed"),
             "test\n"
         );
+    }
+
+    #[test]
+    fn run_fails() {
+        match run(include_str!("../tests/fail/divide-by-zero.lol")) {
+            Err(Error::EvalError(eval::Error::DivideByZero)) => (),
+            _ => panic!("Running test failed (in a bad way)")
+        }
+        match run(include_str!("../tests/fail/stack-overflow.lol")) {
+            Err(Error::EvalError(eval::Error::RecursionLimit(_))) => (),
+            _ => panic!("Running test failed (in a bad way)")
+        }
     }
 }
