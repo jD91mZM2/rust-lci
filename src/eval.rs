@@ -157,7 +157,7 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
                 }
             };
             if let Some(block) = block {
-                let val = match me.eval_all(block)? {
+                let val = match me.eval_scope(block)? {
                     Return::None => me.it.borrow().clone(),
                     Return::Gtfo => Value::Noob,
                     Return::Value(val) => val
@@ -311,14 +311,14 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
             AST::It(expr) => *self.it.borrow_mut() = self.eval_expr(expr)?,
             AST::ORly(yarly, mebbe, nowai) => {
                 if self.it.borrow().cast_troof() {
-                    return self.scope().eval_all(yarly);
+                    return self.eval_scope(yarly);
                 }
                 for (condition, block) in mebbe {
                     if self.eval_expr(condition)?.cast_troof() {
-                        return self.scope().eval_all(block);
+                        return self.eval_scope(block);
                     }
                 }
-                return self.scope().eval_all(nowai);
+                return self.eval_scope(nowai);
             },
             AST::Wtf(omg, omgwtf) => {
                 let mut matched = false;
@@ -326,20 +326,20 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
                 for (condition, block) in omg {
                     if matched || *it == self.eval_expr(condition)? {
                         matched = true;
-                        match self.scope().eval_all(block)? {
+                        match self.eval_scope(block)? {
                             Return::None => (),
                             Return::Gtfo => return Ok(Return::None),
                             val @ Return::Value(_) => return Ok(val)
                         }
                     }
                 }
-                return self.scope().eval_all(omgwtf);
+                return self.eval_scope(omgwtf);
             },
             AST::ImInYr(operation, var, condition, block) => {
                 let mut scope = self.scope();
                 scope.vars.borrow_mut().insert(var.clone(), Value::Numbr(0));
                 while condition.is_none() || scope.eval_expr(condition.clone().unwrap())?.cast_troof() {
-                    match scope.eval_all(block.clone())? {
+                    match scope.eval_scope(block.clone())? {
                         Return::None => (),
                         Return::Gtfo => return Ok(Return::None),
                         val @ Return::Value(_) => return Ok(val)
@@ -397,5 +397,9 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
             }
         }
         Ok(Return::None)
+    }
+    /// Evaluate all lines of ASTs in a new child scope. Convenience function.
+    pub fn eval_scope<I: IntoIterator<Item = AST>>(&self, asts: I) -> Result<Return> {
+        self.scope().eval_all(asts)
     }
 }
