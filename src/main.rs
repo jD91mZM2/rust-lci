@@ -1,10 +1,6 @@
 extern crate lci;
 
-use std::{
-    env,
-    fs::File,
-    io::{self, Read}
-};
+use std::{env, fs, io};
 
 fn main() {
     let file = match env::args().skip(1).next() {
@@ -15,14 +11,13 @@ fn main() {
         }
     };
 
-    let mut input = String::new();
-    match File::open(file).and_then(|mut file| file.read_to_string(&mut input)) {
-        Ok(_) => (),
+    let input = match fs::read_to_string(file) {
+        Ok(input) => input,
         Err(err) => {
             eprintln!("error reading file: {}", err);
             return;
         }
-    }
+    };
 
     let stdin = io::stdin();
     let stdin = stdin.lock();
