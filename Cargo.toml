@@ -3,8 +3,9 @@ authors = ["jD91mZM2 <me@krake.one>"]
 description = "A LOLCODE interpreter written in Rust"
 license-file = "LICENSE"
 name = "lci"
+readme = "README.md"
 repository = "https://github.com/jD91mZM2/rust-lci"
-version = "0.1.6"
+version = "0.1.7"
 
 [dependencies]
 failure = "0.1.1"

@@ -140,6 +140,7 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
                 return Err(Error::RecursionLimit(params.recursion_limit));
             }
         }
+        // Traverse down scopes
         let mut me = self;
         Ok(loop {
             let block = match me.funcs.borrow_mut().get_mut(name) {
@@ -157,8 +158,9 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
                 }
             };
             if let Some(block) = block {
-                let val = match me.eval_scope(block)? {
-                    Return::None => me.it.borrow().clone(),
+                let scope = me.scope();
+                let val = match scope.eval_all(block)? {
+                    Return::None => scope.it.borrow().clone(),
                     Return::Gtfo => Value::Noob,
                     Return::Value(val) => val
                 };
