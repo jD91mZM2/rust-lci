@@ -298,11 +298,14 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
     pub fn eval(&self, ast: AST) -> Result<Return> {
         match ast {
             AST::IHasA(ident, expr) => {
-                let mut vars = self.vars.borrow_mut();
-                if vars.contains_key(&ident) {
-                    return Err(Error::ShadowVar(ident));
+                let val = self.eval_expr(expr)?;
+                {
+                    let mut vars = self.vars.borrow_mut();
+                    if vars.contains_key(&ident) {
+                        return Err(Error::ShadowVar(ident));
+                    }
+                    vars.insert(ident, val);
                 }
-                vars.insert(ident, self.eval_expr(expr)?);
             },
             AST::R(ident, expr) => {
                 let val = self.eval_expr(expr)?;
@@ -310,7 +313,10 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
                     return Err(Error::UndefinedVar(ident));
                 }
             },
-            AST::It(expr) => *self.it.borrow_mut() = self.eval_expr(expr)?,
+            AST::It(expr) => {
+                let expr = self.eval_expr(expr)?;
+                *self.it.borrow_mut() = expr;
+            },
             AST::ORly(yarly, mebbe, nowai) => {
                 if self.it.borrow().cast_troof() {
                     return self.eval_scope(yarly);
@@ -356,7 +362,7 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
                 }
             },
             AST::HowIzI(name, args, block) => {
-                self.funcs.borrow_mut().insert(name.clone(), Function {
+                self.funcs.borrow_mut().insert(name, Function {
                     args: args,
                     block: block
                 });

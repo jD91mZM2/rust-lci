@@ -68,6 +68,10 @@ mod tests {
         assert_eq!(run(include_str!("../tests/implicit-return.lol")).expect("Running test failed"), "hi\n");
         assert_eq!(run(include_str!("../tests/int-overflow.lol")).expect("Running test failed"), "WIN\n");
         assert_eq!(run(include_str!("../tests/pow.lol")).expect("Running test failed"), "32\n");
+        assert_eq!(
+            run(include_str!("../tests/quine.lol")).expect("Running test failed"),
+            include_str!("../tests/quine.lol")
+        );
     }
 
     #[test]
