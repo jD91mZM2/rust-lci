@@ -75,14 +75,6 @@ pub struct Parser<I: Iterator<Item = Token>> {
     pub iter: Peekable<I>
 }
 impl<I: Iterator<Item = Token>> Parser<I> {
-    /// Read one line from the AST, including trailing line separator
-    pub fn line(&mut self) -> Result<Option<AST>> {
-        let stmt = self.statement()?;
-        match self.iter.next() {
-            None | Some(Token::Separator) => Ok(stmt),
-            _ => Err(Error::Trailing)
-        }
-    }
     fn block(&mut self, until: &[Token]) -> Result<Vec<AST>> {
         let mut block = Vec::new();
         loop {
@@ -90,8 +82,8 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 Some(token) => if until.contains(&token) { break; },
                 None => ()
             }
-            if let Some(line) = self.line()? {
-                block.push(line);
+            if let Some(ast) = self.statement()? {
+                block.push(ast);
             }
         }
         Ok(block)
@@ -124,7 +116,15 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             self.iter.next();
         }
     }
-    fn statement(&mut self) -> Result<Option<AST>> {
+    /// Read one statement from the AST, including trailing line separator
+    pub fn statement(&mut self) -> Result<Option<AST>> {
+        let stmt = self.inner_statement()?;
+        match self.iter.next() {
+            None | Some(Token::Separator) => Ok(stmt),
+            _ => Err(Error::Trailing)
+        }
+    }
+    fn inner_statement(&mut self) -> Result<Option<AST>> {
         match self.iter.peek() {
             Some(&Token::Hai) => {
                 self.iter.next();
@@ -398,12 +398,12 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     }
 }
 
-/// Convenience function for reading all lines of AST from `input`
+/// Convenience function for reading all AST from `input`
 pub fn parse<I: IntoIterator<Item = Token>>(input: I) -> Result<Vec<AST>> {
     let mut parser = Parser { iter: input.into_iter().peekable() };
     let mut parsed = Vec::new();
     while parser.iter.peek().is_some() {
-        if let Some(ast) = parser.line()? {
+        if let Some(ast) = parser.statement()? {
             parsed.push(ast);
         }
     }
