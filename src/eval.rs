@@ -397,9 +397,19 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
         Ok(Return::None)
     }
     /// Evaluate all lines of ASTs. You probably want to use this for running code.
-    pub fn eval_all<I: IntoIterator<Item = AST>>(&self, asts: I) -> Result<Return> {
-        for line in asts.into_iter() {
-            match self.eval(line)? {
+    pub fn eval_all<I, IN>(&self, asts: IN) -> Result<Return>
+        where I: Iterator<Item = AST> + Clone,
+              IN: IntoIterator<Item = AST, IntoIter = I>
+    {
+        let iter = asts.into_iter();
+        for ast in iter.clone() {
+            if let AST::HowIzI(..) = ast {
+                // Pre-process function calls
+                self.eval(ast)?;
+            }
+        }
+        for ast in iter {
+            match self.eval(ast)? {
                 Return::None => (),
                 val => return Ok(val)
             }
@@ -407,7 +417,10 @@ impl<'a, R: io::BufRead, W: io::Write> Scope<'a, R, W> {
         Ok(Return::None)
     }
     /// Evaluate all lines of ASTs in a new child scope. Convenience function.
-    pub fn eval_scope<I: IntoIterator<Item = AST>>(&self, asts: I) -> Result<Return> {
+    pub fn eval_scope<I, IN>(&self, asts: IN) -> Result<Return>
+        where I: Iterator<Item = AST> + Clone,
+              IN: IntoIterator<Item = AST, IntoIter = I>
+    {
         self.scope().eval_all(asts)
     }
 }

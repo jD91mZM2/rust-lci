@@ -69,6 +69,14 @@ mod tests {
         assert_eq!(run(include_str!("../tests/int-overflow.lol")).expect("Running test failed"), "WIN\n");
         assert_eq!(run(include_str!("../tests/pow.lol")).expect("Running test failed"), "32\n");
         assert_eq!(
+            run(include_str!("../tests/function-ordering.lol")).expect("Running test failed"),
+            "PING 5\n\
+            PONG 4\n\
+            PING 3\n\
+            PONG 2\n\
+            PING 1\n"
+        );
+        assert_eq!(
             run(include_str!("../tests/quine.lol")).expect("Running test failed"),
             include_str!("../tests/quine.lol")
         );
