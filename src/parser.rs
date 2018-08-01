@@ -427,13 +427,18 @@ mod tests {
                     Token::An,
                     Token::Value(Value::Numbr(10))
             ]).unwrap(),
-            &[AST::IHasA("VAR".to_string(), Expr::ProduktOf(
-                Box::new(Expr::SumOf(
-                    Box::new(Expr::Value(Value::Numbr(12))),
-                    Box::new(Expr::Value(Value::Numbar(5.0)))
-                )),
-                Box::new(Expr::Value(Value::Numbr(10)))
-            ))]
+            &[
+                AST::IHasA(
+                    "VAR".to_string(),
+                    Expr::ProduktOf(
+                        Box::new(Expr::SumOf(
+                            Box::new(Expr::Value(Value::Numbr(12))),
+                            Box::new(Expr::Value(Value::Numbar(5.0)))
+                        )),
+                        Box::new(Expr::Value(Value::Numbr(10)))
+                    )
+                )
+            ]
         );
         assert_eq!(
             parse(vec![
@@ -453,12 +458,18 @@ mod tests {
                     Token::An,
                     Token::Not, Token::Diffrint, Token::Value(Value::Numbr(2)), Token::An, Token::Value(Value::Numbr(2))
             ]).unwrap(),
-            &[AST::It(Expr::AllOf(vec![
-                Expr::BothSaem(Box::new(Expr::Value(Value::Numbr(1))), Box::new(Expr::Value(Value::Numbr(1)))),
-                Expr::Not(Box::new(
-                    Expr::Diffrint(Box::new(Expr::Value(Value::Numbr(2))), Box::new(Expr::Value(Value::Numbr(2))))
-                ))
-            ]))]
+            &[
+                AST::It(Expr::AllOf(vec![
+                    Expr::BothSaem(
+                        Box::new(Expr::Value(Value::Numbr(1))),
+                        Box::new(Expr::Value(Value::Numbr(1)))
+                    ),
+                    Expr::Not(Box::new(Expr::Diffrint(
+                        Box::new(Expr::Value(Value::Numbr(2))),
+                        Box::new(Expr::Value(Value::Numbr(2)))
+                    )))
+                ]))
+            ]
         )
     }
     #[test]
@@ -480,18 +491,27 @@ mod tests {
                         Token::Oic, Token::Separator,
                 Token::Oic
             ]).unwrap(),
-            &[AST::It(Expr::Value(Value::Troof(true))),
-              AST::ORly(
-                  vec![AST::It(Expr::Value(Value::Numbr(1))),
-                       AST::It(Expr::Value(Value::Numbr(3)))],
-                  vec![(Expr::Value(Value::Troof(false)),
-                        vec![AST::It(Expr::Value(Value::Numbr(3)))])],
-                  vec![AST::It(Expr::Value(Value::Troof(true))),
-                       AST::ORly(
-                           vec![AST::It(Expr::Value(Value::Numbr(7)))],
-                           Vec::new(),
-                           Vec::new()
-                       )])]
+            &[
+                AST::It(Expr::Value(Value::Troof(true))),
+                AST::ORly(
+                    vec![
+                        AST::It(Expr::Value(Value::Numbr(1))),
+                        AST::It(Expr::Value(Value::Numbr(3)))
+                    ],
+                    vec![(
+                        Expr::Value(Value::Troof(false)),
+                        vec![AST::It(Expr::Value(Value::Numbr(3)))]
+                    )],
+                    vec![
+                        AST::It(Expr::Value(Value::Troof(true))),
+                        AST::ORly(
+                            vec![AST::It(Expr::Value(Value::Numbr(7)))],
+                            Vec::new(),
+                            Vec::new()
+                        )
+                    ]
+                )
+            ]
         );
     }
     #[test]
@@ -514,17 +534,34 @@ mod tests {
                     Token::Gtfo, Token::Separator,
                 Token::Oic
             ]).unwrap(),
-            &[AST::It(Expr::SumOf(Box::new(Expr::Value(Value::Numbr(1))), Box::new(Expr::Value(Value::Numbr(3))))),
-              AST::Wtf(
-                  vec![(Expr::Value(Value::Numbr(1)),
-                      vec![AST::Visible(vec![Expr::Value(Value::Yarn("WHAT, NO".to_string()))], true)]),
-                       (Expr::Value(Value::Numbr(2)), vec![]),
-                       (Expr::Value(Value::Numbr(3)),
-                      vec![AST::Visible(vec![Expr::Value(Value::Yarn("R U STUPID?".to_string()))], true), AST::Gtfo]),
-                       (Expr::Value(Value::Numbr(4)),
-                      vec![AST::Visible(vec![Expr::Value(Value::Yarn("CORREC!".to_string()))], true), AST::Gtfo])],
-                   vec![AST::Visible(vec![Expr::Value(Value::Yarn("IDFK".to_string()))], true),
-                        AST::Gtfo]
+            &[
+                AST::It(Expr::SumOf(Box::new(Expr::Value(Value::Numbr(1))), Box::new(Expr::Value(Value::Numbr(3))))),
+                AST::Wtf(
+                    vec![
+                        (
+                            Expr::Value(Value::Numbr(1)),
+                            vec![AST::Visible(vec![
+                                Expr::Value(Value::Yarn("WHAT, NO".to_string()))
+                            ], true)]
+                        ),
+                        (Expr::Value(Value::Numbr(2)), vec![]),
+                        (
+                            Expr::Value(Value::Numbr(3)),
+                            vec![AST::Visible(vec![
+                                Expr::Value(Value::Yarn("R U STUPID?".to_string()))
+                            ], true), AST::Gtfo]
+                        ),
+                        (
+                            Expr::Value(Value::Numbr(4)),
+                            vec![AST::Visible(vec![
+                                Expr::Value(Value::Yarn("CORREC!".to_string()))
+                            ], true), AST::Gtfo]
+                        )
+                    ],
+                    vec![
+                        AST::Visible(vec![Expr::Value(Value::Yarn("IDFK".to_string()))], true),
+                        AST::Gtfo
+                    ]
               )]
         );
     }
@@ -538,11 +575,17 @@ mod tests {
                 Token::Visible, Token::Ident("VAR".to_string()), Token::Separator,
                 Token::ImOuttaYr, Token::Ident("LOOP".to_string())
             ]).unwrap(),
-            &[AST::ImInYr(Operation::Uppin, String::from("VAR"),
-                  Some(Expr::Not(Box::new(Expr::BothSaem(
-                      Box::new(Expr::Var("VAR".to_string())),
-                      Box::new(Expr::Value(Value::Numbr(5))))))),
-                  vec![AST::Visible(vec![Expr::Var("VAR".to_string())], true)])]
+            &[
+                AST::ImInYr(
+                    Operation::Uppin,
+                    String::from("VAR"),
+                    Some(Expr::Not(Box::new(Expr::BothSaem(
+                        Box::new(Expr::Var("VAR".to_string())),
+                        Box::new(Expr::Value(Value::Numbr(5)))
+                    )))),
+                    vec![AST::Visible(vec![Expr::Var("VAR".to_string())], true)]
+                )
+            ]
         );
     }
     #[test]
@@ -554,8 +597,14 @@ mod tests {
                 Token::Visible, Token::Ident("VAR".to_string()), Token::Separator,
                 Token::ImOuttaYr, Token::Ident("LOOP".to_string())
             ]).unwrap(),
-            &[AST::ImInYr(Operation::Uppin, String::from("VAR"), None,
-                  vec![AST::Visible(vec![Expr::Var("VAR".to_string())], true)])]
+            &[
+                AST::ImInYr(
+                    Operation::Uppin,
+                    String::from("VAR"),
+                    None,
+                    vec![AST::Visible(vec![Expr::Var("VAR".to_string())], true)]
+                )
+            ]
         );
         assert_eq!(
             parse(vec![
@@ -565,8 +614,14 @@ mod tests {
                 Token::Visible, Token::Ident("VAR".to_string()), Token::Separator,
                 Token::ImOuttaYr, Token::Ident("LOOP".to_string())
             ]).unwrap(),
-            &[AST::ImInYr(Operation::IIz("CHANGIN".to_string()), String::from("VAR"), None,
-                  vec![AST::Visible(vec![Expr::Var("VAR".to_string())], true)])]
+            &[
+                AST::ImInYr(
+                    Operation::IIz("CHANGIN".to_string()),
+                    String::from("VAR"),
+                    None,
+                    vec![AST::Visible(vec![Expr::Var("VAR".to_string())], true)]
+                )
+            ]
         );
     }
     #[test]
@@ -578,8 +633,13 @@ mod tests {
                 Token::Visible, Token::Ident("VAR".to_string()), Token::Separator,
                 Token::IfUSaySo
             ]).unwrap(),
-            &[AST::HowIzI("PRINTING".to_string(), vec!["VAR".to_string()],
-                  vec![AST::Visible(vec![Expr::Var("VAR".to_string())], true)])]
+            &[
+                AST::HowIzI(
+                    "PRINTING".to_string(),
+                    vec!["VAR".to_string()],
+                    vec![AST::Visible(vec![Expr::Var("VAR".to_string())], true)]
+                )
+            ]
         );
     }
     #[test]
@@ -590,9 +650,12 @@ mod tests {
                 Token::Value(Value::Yarn("TEST".to_string())), Token::An, Token::Yr,
                 Token::Value(Value::Yarn("TEST 2".to_string())), Token::Mkay
             ]).unwrap(),
-            &[AST::It(Expr::IIz("PRINTING".to_string(),
-                  vec![Expr::Value(Value::Yarn("TEST".to_string())),
-                       Expr::Value(Value::Yarn("TEST 2".to_string()))]))]
+            &[
+                AST::It(Expr::IIz("PRINTING".to_string(), vec![
+                    Expr::Value(Value::Yarn("TEST".to_string())),
+                    Expr::Value(Value::Yarn("TEST 2".to_string()))
+                ]))
+            ]
         );
     }
 }

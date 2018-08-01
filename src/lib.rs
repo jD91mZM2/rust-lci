@@ -4,6 +4,7 @@ extern crate unic_ucd_name;
 
 pub mod eval;
 pub mod parser;
+pub mod compile_parser;
 pub mod tokenizer;
 pub mod types;
 
